@@ -9,7 +9,7 @@ Recite is a terminal-based program for memorizing song lyrics, written in Go usi
 ## Build Commands
 
 ```bash
-go build ./...          # Build all packages
+go install ./...        # Build and install binary
 go test ./...           # Run all tests
 go test -v ./...        # Run tests with verbose output
 go test -run TestName   # Run a specific test

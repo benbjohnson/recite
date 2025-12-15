@@ -18,7 +18,7 @@ jobs:
           go-version-file: go.mod
 
       - name: Build
-        run: go build ./...
+        run: go install ./...
 
       - name: Test
         run: go test -v ./...
@@ -34,6 +34,6 @@ jobs:
           go-version-file: go.mod
 
       - name: golangci-lint
-        uses: golangci-lint/golangci-lint-action@v6
+        uses: golangci/golangci-lint-action@v6
         with:
           version: latest
