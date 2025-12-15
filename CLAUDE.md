@@ -15,6 +15,12 @@ go test -v ./...        # Run tests with verbose output
 go test -run TestName   # Run a specific test
 ```
 
+## CI
+
+GitHub Actions runs on push/PR to main:
+- `test`: Builds and runs all tests
+- `lint`: Runs golangci-lint
+
 ## Usage
 
 ```bash
