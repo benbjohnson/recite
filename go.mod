@@ -1,6 +1,6 @@
 module github.com/benbjohnson/recite
 
-go 1.25.4
+go 1.24.0
 
 require (
 	github.com/charmbracelet/bubbletea v1.3.10
