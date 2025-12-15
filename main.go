@@ -81,8 +81,8 @@ func (m model) handleTypingInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case tea.KeyEnter:
-		// Check if input matches current line
-		m.results[m.currentLine] = strings.TrimSpace(m.input) == strings.TrimSpace(m.lines[m.currentLine])
+		// Check if input matches current line (case insensitive)
+		m.results[m.currentLine] = strings.EqualFold(strings.TrimSpace(m.input), strings.TrimSpace(m.lines[m.currentLine]))
 		m.currentLine++
 		m.input = ""
 
