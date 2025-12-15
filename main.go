@@ -180,7 +180,7 @@ func (m model) View() string {
 		// Show previous lines with results
 		for i := 0; i < m.currentLine; i++ {
 			if isComment(m.lines[i]) {
-				b.WriteString(commentStyle.Render("  " + m.lines[i]))
+				b.WriteString(commentStyle.Render(m.lines[i]))
 			} else if m.results[i] {
 				b.WriteString(greenStyle.Render("✓ "))
 				b.WriteString(dimStyle.Render(m.lines[i]))
@@ -210,7 +210,7 @@ func (m model) View() string {
 		b.WriteString("\n")
 		for i, line := range m.lines {
 			if isComment(line) {
-				b.WriteString(commentStyle.Render("  " + line))
+				b.WriteString(commentStyle.Render(line))
 			} else if m.results[i] {
 				b.WriteString(greenStyle.Render("✓ "))
 				b.WriteString(line)
