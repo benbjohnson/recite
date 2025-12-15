@@ -21,7 +21,7 @@ go test -run TestName   # Run a specific test
 ./recite <lyrics-file>
 ```
 
-The lyrics file should contain one line per line of lyrics. Empty lines are skipped.
+The lyrics file should contain one line per line of lyrics. Empty lines are skipped. Lines starting with `#` are comments (displayed in gray, not typed by user).
 
 ## Architecture
 

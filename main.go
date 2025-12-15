@@ -11,10 +11,11 @@ import (
 )
 
 var (
-	boldStyle      = lipgloss.NewStyle().Bold(true)
-	greenStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
-	redStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
-	dimStyle       = lipgloss.NewStyle().Faint(true)
+	boldStyle    = lipgloss.NewStyle().Bold(true)
+	greenStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
+	redStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
+	dimStyle     = lipgloss.NewStyle().Faint(true)
+	commentStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("8")) // Gray
 )
 
 type state int
@@ -32,10 +33,28 @@ type model struct {
 	state       state
 }
 
+func isComment(line string) bool {
+	return strings.HasPrefix(strings.TrimSpace(line), "#")
+}
+
 func initialModel(lines []string) model {
-	return model{
+	m := model{
 		lines:   lines,
 		results: make([]bool, len(lines)),
+	}
+	// Skip any leading comments
+	m.skipComments()
+	return m
+}
+
+// skipComments advances currentLine past any comment lines
+func (m *model) skipComments() {
+	for m.currentLine < len(m.lines) && isComment(m.lines[m.currentLine]) {
+		m.results[m.currentLine] = true // Comments are always "correct"
+		m.currentLine++
+	}
+	if m.currentLine >= len(m.lines) {
+		m.state = stateResult
 	}
 }
 
@@ -67,10 +86,8 @@ func (m model) handleTypingInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.currentLine++
 		m.input = ""
 
-		// If we've finished all lines, show results
-		if m.currentLine >= len(m.lines) {
-			m.state = stateResult
-		}
+		// Skip any comment lines
+		m.skipComments()
 		return m, nil
 
 	case tea.KeyBackspace:
@@ -104,6 +121,7 @@ func (m model) handleResultInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.input = ""
 			m.results = make([]bool, len(m.lines))
 			m.state = stateTyping
+			m.skipComments()
 			return m, nil
 		} else if key == "n" || key == "N" {
 			return m, tea.Quit
@@ -120,12 +138,15 @@ func (m model) View() string {
 	case stateTyping:
 		// Show previous lines with results
 		for i := 0; i < m.currentLine; i++ {
-			if m.results[i] {
+			if isComment(m.lines[i]) {
+				b.WriteString(commentStyle.Render("  " + m.lines[i]))
+			} else if m.results[i] {
 				b.WriteString(greenStyle.Render("✓ "))
+				b.WriteString(dimStyle.Render(m.lines[i]))
 			} else {
 				b.WriteString(redStyle.Render("✗ "))
+				b.WriteString(dimStyle.Render(m.lines[i]))
 			}
-			b.WriteString(dimStyle.Render(m.lines[i]))
 			b.WriteString("\n")
 		}
 
@@ -143,25 +164,32 @@ func (m model) View() string {
 		// Show all lines with results
 		b.WriteString("\n")
 		for i, line := range m.lines {
-			if m.results[i] {
+			if isComment(line) {
+				b.WriteString(commentStyle.Render("  " + line))
+			} else if m.results[i] {
 				b.WriteString(greenStyle.Render("✓ "))
+				b.WriteString(line)
 			} else {
 				b.WriteString(redStyle.Render("✗ "))
+				b.WriteString(line)
 			}
-			b.WriteString(line)
 			b.WriteString("\n")
 		}
 
-		// Calculate score
+		// Calculate score (excluding comments)
 		correct := 0
-		for _, r := range m.results {
-			if r {
-				correct++
+		total := 0
+		for i, line := range m.lines {
+			if !isComment(line) {
+				total++
+				if m.results[i] {
+					correct++
+				}
 			}
 		}
 
 		b.WriteString("\n")
-		b.WriteString(fmt.Sprintf("Score: %d/%d\n", correct, len(m.lines)))
+		b.WriteString(fmt.Sprintf("Score: %d/%d\n", correct, total))
 		b.WriteString("\n")
 		b.WriteString("Try again? (y/n) ")
 	}
