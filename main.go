@@ -21,8 +21,16 @@ var (
 type state int
 
 const (
-	stateTyping state = iota
+	stateModeSelect state = iota
+	stateTyping
 	stateResult
+)
+
+type mode int
+
+const (
+	modePractice mode = iota
+	modeMemory
 )
 
 type model struct {
@@ -31,6 +39,7 @@ type model struct {
 	input       string
 	results     []bool
 	state       state
+	mode        mode
 }
 
 func isComment(line string) bool {
@@ -38,13 +47,11 @@ func isComment(line string) bool {
 }
 
 func initialModel(lines []string) model {
-	m := model{
+	return model{
 		lines:   lines,
 		results: make([]bool, len(lines)),
+		state:   stateModeSelect,
 	}
-	// Skip any leading comments
-	m.skipComments()
-	return m
 }
 
 // skipComments advances currentLine past any comment lines
@@ -66,12 +73,37 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch m.state {
+		case stateModeSelect:
+			return m.handleModeSelectInput(msg)
 		case stateTyping:
 			return m.handleTypingInput(msg)
 		case stateResult:
 			return m.handleResultInput(msg)
 		}
 	}
+	return m, nil
+}
+
+func (m model) handleModeSelectInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyCtrlC, tea.KeyEsc:
+		return m, tea.Quit
+
+	case tea.KeyRunes:
+		key := string(msg.Runes)
+		if key == "1" {
+			m.mode = modePractice
+			m.state = stateTyping
+			m.skipComments()
+			return m, nil
+		} else if key == "2" {
+			m.mode = modeMemory
+			m.state = stateTyping
+			m.skipComments()
+			return m, nil
+		}
+	}
+
 	return m, nil
 }
 
@@ -135,6 +167,15 @@ func (m model) View() string {
 	var b strings.Builder
 
 	switch m.state {
+	case stateModeSelect:
+		b.WriteString("\n")
+		b.WriteString(boldStyle.Render("Select Mode:"))
+		b.WriteString("\n\n")
+		b.WriteString("  1. Practice - see the line, then type it\n")
+		b.WriteString("  2. Memory - type from memory\n")
+		b.WriteString("\n")
+		b.WriteString("Press 1 or 2 to select: ")
+
 	case stateTyping:
 		// Show previous lines with results
 		for i := 0; i < m.currentLine; i++ {
@@ -150,9 +191,13 @@ func (m model) View() string {
 			b.WriteString("\n")
 		}
 
-		// Show current line to type (bold)
+		// Show current line to type (bold) - only in practice mode
 		b.WriteString("\n")
-		b.WriteString(boldStyle.Render(m.lines[m.currentLine]))
+		if m.mode == modePractice {
+			b.WriteString(boldStyle.Render(m.lines[m.currentLine]))
+		} else {
+			b.WriteString(dimStyle.Render("(type from memory)"))
+		}
 		b.WriteString("\n")
 
 		// Show user input
