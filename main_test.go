@@ -7,6 +7,63 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
+func TestModeSelect(t *testing.T) {
+	t.Run("initial model starts in mode select state", func(t *testing.T) {
+		m := initialModel([]string{"Line one"})
+		if m.state != stateModeSelect {
+			t.Errorf("state = %v, want stateModeSelect", m.state)
+		}
+	})
+
+	t.Run("pressing 1 selects practice mode", func(t *testing.T) {
+		m := initialModel([]string{"Line one"})
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'1'}})
+		m = newModel.(model)
+
+		if m.mode != modePractice {
+			t.Errorf("mode = %v, want modePractice", m.mode)
+		}
+		if m.state != stateTyping {
+			t.Errorf("state = %v, want stateTyping", m.state)
+		}
+	})
+
+	t.Run("pressing 2 selects memory mode", func(t *testing.T) {
+		m := initialModel([]string{"Line one"})
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
+		m = newModel.(model)
+
+		if m.mode != modeMemory {
+			t.Errorf("mode = %v, want modeMemory", m.mode)
+		}
+		if m.state != stateTyping {
+			t.Errorf("state = %v, want stateTyping", m.state)
+		}
+	})
+
+	t.Run("mode select skips leading comments", func(t *testing.T) {
+		m := initialModel([]string{"# Comment", "Real line"})
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'1'}})
+		m = newModel.(model)
+
+		if m.currentLine != 1 {
+			t.Errorf("currentLine = %d, want 1 (should skip comment)", m.currentLine)
+		}
+	})
+
+	t.Run("ctrl+c quits from mode select", func(t *testing.T) {
+		m := initialModel([]string{"Line one"})
+		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+
+		if cmd == nil {
+			t.Error("expected quit command")
+		}
+	})
+}
+
 func TestIsComment(t *testing.T) {
 	tests := []struct {
 		line     string
@@ -37,33 +94,11 @@ func TestInitialModel(t *testing.T) {
 		if m.currentLine != 0 {
 			t.Errorf("currentLine = %d, want 0", m.currentLine)
 		}
-		if m.state != stateTyping {
-			t.Errorf("state = %v, want stateTyping", m.state)
+		if m.state != stateModeSelect {
+			t.Errorf("state = %v, want stateModeSelect", m.state)
 		}
 		if len(m.results) != 2 {
 			t.Errorf("len(results) = %d, want 2", len(m.results))
-		}
-	})
-
-	t.Run("skips leading comments", func(t *testing.T) {
-		lines := []string{"# Comment", "# Another comment", "First real line"}
-		m := initialModel(lines)
-
-		if m.currentLine != 2 {
-			t.Errorf("currentLine = %d, want 2", m.currentLine)
-		}
-		// Comments should be marked as correct
-		if !m.results[0] || !m.results[1] {
-			t.Error("comment lines should be marked as correct")
-		}
-	})
-
-	t.Run("all comments transitions to result state", func(t *testing.T) {
-		lines := []string{"# Only", "# Comments"}
-		m := initialModel(lines)
-
-		if m.state != stateResult {
-			t.Errorf("state = %v, want stateResult", m.state)
 		}
 	})
 }
@@ -71,6 +106,7 @@ func TestInitialModel(t *testing.T) {
 func TestHandleTypingInput(t *testing.T) {
 	t.Run("correct input", func(t *testing.T) {
 		m := initialModel([]string{"Hello world", "Second line"})
+		m.state = stateTyping
 		m.input = "Hello world"
 
 		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -86,6 +122,7 @@ func TestHandleTypingInput(t *testing.T) {
 
 	t.Run("case insensitive comparison", func(t *testing.T) {
 		m := initialModel([]string{"Hello World"})
+		m.state = stateTyping
 		m.input = "hello world"
 
 		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -98,6 +135,7 @@ func TestHandleTypingInput(t *testing.T) {
 
 	t.Run("incorrect input", func(t *testing.T) {
 		m := initialModel([]string{"Hello world"})
+		m.state = stateTyping
 		m.input = "Wrong input"
 
 		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -110,6 +148,7 @@ func TestHandleTypingInput(t *testing.T) {
 
 	t.Run("whitespace trimming", func(t *testing.T) {
 		m := initialModel([]string{"Hello world"})
+		m.state = stateTyping
 		m.input = "  Hello world  "
 
 		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -122,6 +161,7 @@ func TestHandleTypingInput(t *testing.T) {
 
 	t.Run("skips comments after enter", func(t *testing.T) {
 		m := initialModel([]string{"First line", "# Comment", "Third line"})
+		m.state = stateTyping
 		m.input = "First line"
 
 		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -134,6 +174,7 @@ func TestHandleTypingInput(t *testing.T) {
 
 	t.Run("transitions to result after last line", func(t *testing.T) {
 		m := initialModel([]string{"Only line"})
+		m.state = stateTyping
 		m.input = "Only line"
 
 		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
@@ -146,6 +187,7 @@ func TestHandleTypingInput(t *testing.T) {
 
 	t.Run("backspace removes character", func(t *testing.T) {
 		m := initialModel([]string{"Test"})
+		m.state = stateTyping
 		m.input = "Hello"
 
 		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
@@ -158,6 +200,7 @@ func TestHandleTypingInput(t *testing.T) {
 
 	t.Run("typing adds characters", func(t *testing.T) {
 		m := initialModel([]string{"Test"})
+		m.state = stateTyping
 		m.input = "He"
 
 		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'l', 'l'}})
@@ -170,6 +213,7 @@ func TestHandleTypingInput(t *testing.T) {
 
 	t.Run("space adds space", func(t *testing.T) {
 		m := initialModel([]string{"Test"})
+		m.state = stateTyping
 		m.input = "Hello"
 
 		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeySpace})
@@ -229,6 +273,20 @@ func TestHandleResultInput(t *testing.T) {
 		}
 	})
 
+	t.Run("restart preserves mode", func(t *testing.T) {
+		m := initialModel([]string{"Line one"})
+		m.mode = modeMemory
+		m.state = stateResult
+		m.currentLine = 1
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+		m = newModel.(model)
+
+		if m.mode != modeMemory {
+			t.Errorf("mode = %v, want modeMemory (should preserve mode on restart)", m.mode)
+		}
+	})
+
 	t.Run("n quits", func(t *testing.T) {
 		m := initialModel([]string{"Line one"})
 		m.state = stateResult
@@ -253,12 +311,46 @@ func TestHandleResultInput(t *testing.T) {
 }
 
 func TestView(t *testing.T) {
-	t.Run("typing state shows current line bold", func(t *testing.T) {
+	t.Run("mode select shows menu", func(t *testing.T) {
 		m := initialModel([]string{"Test line"})
 		view := m.View()
 
+		if !strings.Contains(view, "Select Mode:") {
+			t.Error("view should show mode selection header")
+		}
+		if !strings.Contains(view, "1. Practice") {
+			t.Error("view should show practice option")
+		}
+		if !strings.Contains(view, "2. Memory") {
+			t.Error("view should show memory option")
+		}
+	})
+
+	t.Run("practice mode shows current line", func(t *testing.T) {
+		m := initialModel([]string{"Test line"})
+		m.state = stateTyping
+		m.mode = modePractice
+		view := m.View()
+
 		if !strings.Contains(view, "Test line") {
-			t.Error("view should contain current line")
+			t.Error("practice mode should show current line")
+		}
+		if !strings.Contains(view, "_") {
+			t.Error("view should contain cursor")
+		}
+	})
+
+	t.Run("memory mode hides current line", func(t *testing.T) {
+		m := initialModel([]string{"Test line"})
+		m.state = stateTyping
+		m.mode = modeMemory
+		view := m.View()
+
+		if strings.Contains(view, "Test line") {
+			t.Error("memory mode should not show current line")
+		}
+		if !strings.Contains(view, "(type from memory)") {
+			t.Error("memory mode should show memory prompt")
 		}
 		if !strings.Contains(view, "_") {
 			t.Error("view should contain cursor")
@@ -295,6 +387,7 @@ func TestView(t *testing.T) {
 
 	t.Run("shows checkmark for correct lines", func(t *testing.T) {
 		m := initialModel([]string{"Line one", "Line two"})
+		m.state = stateTyping
 		m.currentLine = 1
 		m.results[0] = true
 
@@ -307,6 +400,7 @@ func TestView(t *testing.T) {
 
 	t.Run("shows X for incorrect lines", func(t *testing.T) {
 		m := initialModel([]string{"Line one", "Line two"})
+		m.state = stateTyping
 		m.currentLine = 1
 		m.results[0] = false
 
@@ -319,8 +413,27 @@ func TestView(t *testing.T) {
 }
 
 func TestQuitCommands(t *testing.T) {
+	t.Run("ctrl+c quits in mode select state", func(t *testing.T) {
+		m := initialModel([]string{"Test"})
+		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+
+		if cmd == nil {
+			t.Error("expected quit command")
+		}
+	})
+
+	t.Run("escape quits in mode select state", func(t *testing.T) {
+		m := initialModel([]string{"Test"})
+		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
+
+		if cmd == nil {
+			t.Error("expected quit command")
+		}
+	})
+
 	t.Run("ctrl+c quits in typing state", func(t *testing.T) {
 		m := initialModel([]string{"Test"})
+		m.state = stateTyping
 		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 
 		if cmd == nil {
@@ -330,6 +443,7 @@ func TestQuitCommands(t *testing.T) {
 
 	t.Run("escape quits in typing state", func(t *testing.T) {
 		m := initialModel([]string{"Test"})
+		m.state = stateTyping
 		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 
 		if cmd == nil {
