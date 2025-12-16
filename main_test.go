@@ -108,6 +108,35 @@ func TestHeaderText(t *testing.T) {
 	}
 }
 
+func TestNormalize(t *testing.T) {
+	tests := []struct {
+		input    string
+		expected string
+	}{
+		{"Hello World", "helloworld"},
+		{"hello world", "helloworld"},
+		{"Hello, World!", "helloworld"},
+		{"Don't stop", "dontstop"},
+		{"It's a test", "itsatest"},
+		{"  spaces  everywhere  ", "spaceseverywhere"},
+		{"UPPERCASE", "uppercase"},
+		{"123 numbers 456", "123numbers456"},
+		{"", ""},
+		{"...!!!", ""},
+		{"a-b-c", "abc"},
+		{"(parentheses)", "parentheses"},
+		{"question?", "question"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.input, func(t *testing.T) {
+			if got := normalize(tt.input); got != tt.expected {
+				t.Errorf("normalize(%q) = %q, want %q", tt.input, got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestInitialModel(t *testing.T) {
 	t.Run("basic initialization", func(t *testing.T) {
 		lines := []string{"Line one", "Line two"}
@@ -178,6 +207,32 @@ func TestHandleTypingInput(t *testing.T) {
 
 		if !m.results[0] {
 			t.Error("whitespace-trimmed match should be correct")
+		}
+	})
+
+	t.Run("ignores punctuation", func(t *testing.T) {
+		m := initialModel([]string{"Don't stop believin'"})
+		m.state = stateTyping
+		m.input = "dont stop believin"
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		m = newModel.(model)
+
+		if !m.results[0] {
+			t.Error("punctuation-free input should match")
+		}
+	})
+
+	t.Run("ignores extra spaces", func(t *testing.T) {
+		m := initialModel([]string{"Hello world"})
+		m.state = stateTyping
+		m.input = "Hello    world"
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		m = newModel.(model)
+
+		if !m.results[0] {
+			t.Error("input with extra spaces should match")
 		}
 	})
 

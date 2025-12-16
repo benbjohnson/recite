@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"unicode"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -51,6 +52,18 @@ func headerText(line string) string {
 	line = strings.TrimSpace(line)
 	line = strings.TrimPrefix(line, "#")
 	return strings.TrimSpace(line)
+}
+
+// normalize removes all punctuation and spaces, and lowercases the string
+// for forgiving comparison of user input to expected lyrics
+func normalize(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			b.WriteRune(unicode.ToLower(r))
+		}
+	}
+	return b.String()
 }
 
 func initialModel(lines []string) model {
@@ -120,8 +133,8 @@ func (m model) handleTypingInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case tea.KeyEnter:
-		// Check if input matches current line (case insensitive)
-		m.results[m.currentLine] = strings.EqualFold(strings.TrimSpace(m.input), strings.TrimSpace(m.lines[m.currentLine]))
+		// Check if input matches current line (ignoring punctuation, spaces, and case)
+		m.results[m.currentLine] = normalize(m.input) == normalize(m.lines[m.currentLine])
 		m.currentLine++
 		m.input = ""
 
