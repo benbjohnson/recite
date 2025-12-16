@@ -476,6 +476,55 @@ func TestHandleTypingInput(t *testing.T) {
 		if m.hint != "world" {
 			t.Errorf("hint = %q, want %q", m.hint, "world")
 		}
+		if m.hintLevel != 1 {
+			t.Errorf("hintLevel = %d, want 1", m.hintLevel)
+		}
+	})
+
+	t.Run("double tab shows full line", func(t *testing.T) {
+		m := initialModel(metadata{}, []string{"Hello world today"})
+		m.state = stateTyping
+		m.input = "Hello "
+
+		// First tab
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
+		m = newModel.(model)
+
+		// Second tab
+		newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+		m = newModel.(model)
+
+		if m.hint != "Hello world today" {
+			t.Errorf("hint = %q, want %q", m.hint, "Hello world today")
+		}
+		if m.hintLevel != 2 {
+			t.Errorf("hintLevel = %d, want 2", m.hintLevel)
+		}
+	})
+
+	t.Run("third tab does nothing", func(t *testing.T) {
+		m := initialModel(metadata{}, []string{"Hello world today"})
+		m.state = stateTyping
+		m.input = ""
+
+		// First tab
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
+		m = newModel.(model)
+
+		// Second tab
+		newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+		m = newModel.(model)
+
+		// Third tab - should stay the same
+		newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+		m = newModel.(model)
+
+		if m.hint != "Hello world today" {
+			t.Errorf("hint = %q, want %q", m.hint, "Hello world today")
+		}
+		if m.hintLevel != 2 {
+			t.Errorf("hintLevel = %d, want 2", m.hintLevel)
+		}
 	})
 
 	t.Run("typing clears hint", func(t *testing.T) {

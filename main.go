@@ -61,7 +61,8 @@ type model struct {
 	results         []bool
 	state           state
 	mode            mode
-	hint            string // current hint to display (next word)
+	hint            string // current hint to display (next word or full line)
+	hintLevel       int    // 0 = no hint, 1 = word hint, 2 = full line hint
 }
 
 func isComment(line string) bool {
@@ -298,14 +299,21 @@ func (m model) handleTypingInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.currentLine++
 		m.input = ""
 		m.hint = ""
+		m.hintLevel = 0
 
 		// Skip any comment lines
 		m.skipComments()
 		return m, nil
 
 	case tea.KeyTab:
-		// Show hint for next word
-		m.hint = getNextWordHint(m.input, m.lines[m.currentLine])
+		// First tab: show next word, second tab: show full line
+		if m.hintLevel == 0 {
+			m.hint = getNextWordHint(m.input, m.lines[m.currentLine])
+			m.hintLevel = 1
+		} else if m.hintLevel == 1 {
+			m.hint = m.lines[m.currentLine]
+			m.hintLevel = 2
+		}
 		return m, nil
 
 	case tea.KeyBackspace:
@@ -313,16 +321,19 @@ func (m model) handleTypingInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.input = m.input[:len(m.input)-1]
 		}
 		m.hint = ""
+		m.hintLevel = 0
 		return m, nil
 
 	case tea.KeyRunes:
 		m.input += string(msg.Runes)
 		m.hint = ""
+		m.hintLevel = 0
 		return m, nil
 
 	case tea.KeySpace:
 		m.input += " "
 		m.hint = ""
+		m.hintLevel = 0
 		return m, nil
 	}
 
