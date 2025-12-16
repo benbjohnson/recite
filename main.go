@@ -23,9 +23,16 @@ type state int
 
 const (
 	stateModeSelect state = iota
+	stateSectionSelect
 	stateTyping
 	stateResult
 )
+
+type section struct {
+	name     string
+	startIdx int // inclusive
+	endIdx   int // exclusive
+}
 
 type mode int
 
@@ -35,12 +42,16 @@ const (
 )
 
 type model struct {
-	lines       []string
-	currentLine int
-	input       string
-	results     []bool
-	state       state
-	mode        mode
+	allLines        []string  // all lines from the file
+	lines           []string  // lines to practice (filtered by section)
+	lineIndices     []int     // maps filtered line indices to allLines indices
+	sections        []section // parsed sections
+	selectedSection int       // -1 for all sections
+	currentLine     int
+	input           string
+	results         []bool
+	state           state
+	mode            mode
 }
 
 func isComment(line string) bool {
@@ -66,11 +77,52 @@ func normalize(s string) string {
 	return b.String()
 }
 
+// parseSections extracts sections from lines. Each section starts with a # comment.
+// Lines before the first # are grouped into an "Intro" section if present.
+func parseSections(lines []string) []section {
+	var sections []section
+	var currentSection *section
+
+	for i, line := range lines {
+		if isComment(line) {
+			// Close previous section
+			if currentSection != nil {
+				currentSection.endIdx = i
+				sections = append(sections, *currentSection)
+			}
+			// Start new section
+			currentSection = &section{
+				name:     headerText(line),
+				startIdx: i,
+			}
+		} else if currentSection == nil {
+			// Lines before first section header
+			currentSection = &section{
+				name:     "Intro",
+				startIdx: 0,
+			}
+		}
+	}
+
+	// Close final section
+	if currentSection != nil {
+		currentSection.endIdx = len(lines)
+		sections = append(sections, *currentSection)
+	}
+
+	return sections
+}
+
 func initialModel(lines []string) model {
+	sections := parseSections(lines)
+
 	return model{
-		lines:   lines,
-		results: make([]bool, len(lines)),
-		state:   stateModeSelect,
+		allLines:        lines,
+		lines:           lines,
+		sections:        sections,
+		selectedSection: -1, // -1 means all sections
+		results:         make([]bool, len(lines)),
+		state:           stateModeSelect,
 	}
 }
 
@@ -95,6 +147,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch m.state {
 		case stateModeSelect:
 			return m.handleModeSelectInput(msg)
+		case stateSectionSelect:
+			return m.handleSectionSelectInput(msg)
 		case stateTyping:
 			return m.handleTypingInput(msg)
 		case stateResult:
@@ -113,14 +167,67 @@ func (m model) handleModeSelectInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		key := string(msg.Runes)
 		if key == "1" {
 			m.mode = modePractice
-			m.state = stateTyping
-			m.skipComments()
+			m.state = stateSectionSelect
 			return m, nil
 		} else if key == "2" {
 			m.mode = modeMemory
+			m.state = stateSectionSelect
+			return m, nil
+		}
+	}
+
+	return m, nil
+}
+
+// selectSection filters lines based on the selected section index.
+// Pass -1 to select all sections.
+func (m *model) selectSection(sectionIdx int) {
+	m.selectedSection = sectionIdx
+
+	if sectionIdx < 0 || sectionIdx >= len(m.sections) {
+		// All sections
+		m.lines = m.allLines
+		m.lineIndices = nil
+		m.results = make([]bool, len(m.lines))
+	} else {
+		// Specific section
+		sec := m.sections[sectionIdx]
+		m.lines = m.allLines[sec.startIdx:sec.endIdx]
+		m.lineIndices = make([]int, len(m.lines))
+		for i := range m.lines {
+			m.lineIndices[i] = sec.startIdx + i
+		}
+		m.results = make([]bool, len(m.lines))
+	}
+
+	m.currentLine = 0
+	m.input = ""
+}
+
+func (m model) handleSectionSelectInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyCtrlC, tea.KeyEsc:
+		return m, tea.Quit
+
+	case tea.KeyRunes:
+		key := string(msg.Runes)
+		// "a" or "A" selects all sections
+		if key == "a" || key == "A" {
+			m.selectSection(-1)
 			m.state = stateTyping
 			m.skipComments()
 			return m, nil
+		}
+
+		// Number keys 1-9 select specific sections
+		if len(key) == 1 && key[0] >= '1' && key[0] <= '9' {
+			idx := int(key[0] - '1') // Convert '1' to 0, '2' to 1, etc.
+			if idx < len(m.sections) {
+				m.selectSection(idx)
+				m.state = stateTyping
+				m.skipComments()
+				return m, nil
+			}
 		}
 	}
 
@@ -195,6 +302,17 @@ func (m model) View() string {
 		b.WriteString("  2. Memory - type from memory\n")
 		b.WriteString("\n")
 		b.WriteString("Press 1 or 2 to select: ")
+
+	case stateSectionSelect:
+		b.WriteString("\n")
+		b.WriteString(boldStyle.Render("Select Section:"))
+		b.WriteString("\n\n")
+		b.WriteString("  a. All sections\n")
+		for i, sec := range m.sections {
+			b.WriteString(fmt.Sprintf("  %d. %s\n", i+1, sec.name))
+		}
+		b.WriteString("\n")
+		b.WriteString("Press a or 1-9 to select: ")
 
 	case stateTyping:
 		// Show previous lines with results
