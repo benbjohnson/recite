@@ -24,8 +24,8 @@ func TestModeSelect(t *testing.T) {
 		if m.mode != modePractice {
 			t.Errorf("mode = %v, want modePractice", m.mode)
 		}
-		if m.state != stateTyping {
-			t.Errorf("state = %v, want stateTyping", m.state)
+		if m.state != stateSectionSelect {
+			t.Errorf("state = %v, want stateSectionSelect", m.state)
 		}
 	})
 
@@ -38,19 +38,8 @@ func TestModeSelect(t *testing.T) {
 		if m.mode != modeMemory {
 			t.Errorf("mode = %v, want modeMemory", m.mode)
 		}
-		if m.state != stateTyping {
-			t.Errorf("state = %v, want stateTyping", m.state)
-		}
-	})
-
-	t.Run("mode select skips leading comments", func(t *testing.T) {
-		m := initialModel([]string{"# Comment", "Real line"})
-
-		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'1'}})
-		m = newModel.(model)
-
-		if m.currentLine != 1 {
-			t.Errorf("currentLine = %d, want 1 (should skip comment)", m.currentLine)
+		if m.state != stateSectionSelect {
+			t.Errorf("state = %v, want stateSectionSelect", m.state)
 		}
 	})
 
@@ -60,6 +49,155 @@ func TestModeSelect(t *testing.T) {
 
 		if cmd == nil {
 			t.Error("expected quit command")
+		}
+	})
+}
+
+func TestSectionSelect(t *testing.T) {
+	t.Run("pressing a selects all sections", func(t *testing.T) {
+		m := initialModel([]string{"# Verse 1", "Line one", "# Chorus", "Line two"})
+		m.state = stateSectionSelect
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+		m = newModel.(model)
+
+		if m.state != stateTyping {
+			t.Errorf("state = %v, want stateTyping", m.state)
+		}
+		if m.selectedSection != -1 {
+			t.Errorf("selectedSection = %d, want -1 (all sections)", m.selectedSection)
+		}
+		if len(m.lines) != 4 {
+			t.Errorf("len(lines) = %d, want 4", len(m.lines))
+		}
+	})
+
+	t.Run("pressing 1 selects first section", func(t *testing.T) {
+		m := initialModel([]string{"# Verse 1", "Line one", "# Chorus", "Line two"})
+		m.state = stateSectionSelect
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'1'}})
+		m = newModel.(model)
+
+		if m.state != stateTyping {
+			t.Errorf("state = %v, want stateTyping", m.state)
+		}
+		if m.selectedSection != 0 {
+			t.Errorf("selectedSection = %d, want 0", m.selectedSection)
+		}
+		if len(m.lines) != 2 {
+			t.Errorf("len(lines) = %d, want 2 (Verse 1 header + Line one)", len(m.lines))
+		}
+	})
+
+	t.Run("pressing 2 selects second section", func(t *testing.T) {
+		m := initialModel([]string{"# Verse 1", "Line one", "# Chorus", "Line two"})
+		m.state = stateSectionSelect
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
+		m = newModel.(model)
+
+		if m.state != stateTyping {
+			t.Errorf("state = %v, want stateTyping", m.state)
+		}
+		if m.selectedSection != 1 {
+			t.Errorf("selectedSection = %d, want 1", m.selectedSection)
+		}
+		if len(m.lines) != 2 {
+			t.Errorf("len(lines) = %d, want 2 (Chorus header + Line two)", len(m.lines))
+		}
+	})
+
+	t.Run("section selection skips leading comments", func(t *testing.T) {
+		m := initialModel([]string{"# Verse 1", "Line one"})
+		m.state = stateSectionSelect
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
+		m = newModel.(model)
+
+		if m.currentLine != 1 {
+			t.Errorf("currentLine = %d, want 1 (should skip comment)", m.currentLine)
+		}
+	})
+
+	t.Run("ctrl+c quits from section select", func(t *testing.T) {
+		m := initialModel([]string{"# Verse 1", "Line one"})
+		m.state = stateSectionSelect
+		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+
+		if cmd == nil {
+			t.Error("expected quit command")
+		}
+	})
+
+	t.Run("invalid section number does nothing", func(t *testing.T) {
+		m := initialModel([]string{"# Verse 1", "Line one"})
+		m.state = stateSectionSelect
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'9'}})
+		m = newModel.(model)
+
+		if m.state != stateSectionSelect {
+			t.Errorf("state = %v, want stateSectionSelect (invalid number should do nothing)", m.state)
+		}
+	})
+}
+
+func TestParseSections(t *testing.T) {
+	t.Run("parses multiple sections", func(t *testing.T) {
+		lines := []string{"# Verse 1", "Line one", "# Chorus", "Line two"}
+		sections := parseSections(lines)
+
+		if len(sections) != 2 {
+			t.Fatalf("len(sections) = %d, want 2", len(sections))
+		}
+		if sections[0].name != "Verse 1" {
+			t.Errorf("sections[0].name = %q, want %q", sections[0].name, "Verse 1")
+		}
+		if sections[0].startIdx != 0 || sections[0].endIdx != 2 {
+			t.Errorf("sections[0] range = [%d, %d), want [0, 2)", sections[0].startIdx, sections[0].endIdx)
+		}
+		if sections[1].name != "Chorus" {
+			t.Errorf("sections[1].name = %q, want %q", sections[1].name, "Chorus")
+		}
+		if sections[1].startIdx != 2 || sections[1].endIdx != 4 {
+			t.Errorf("sections[1] range = [%d, %d), want [2, 4)", sections[1].startIdx, sections[1].endIdx)
+		}
+	})
+
+	t.Run("creates Intro for lines before first header", func(t *testing.T) {
+		lines := []string{"Intro line", "# Verse 1", "Verse line"}
+		sections := parseSections(lines)
+
+		if len(sections) != 2 {
+			t.Fatalf("len(sections) = %d, want 2", len(sections))
+		}
+		if sections[0].name != "Intro" {
+			t.Errorf("sections[0].name = %q, want %q", sections[0].name, "Intro")
+		}
+		if sections[0].startIdx != 0 || sections[0].endIdx != 1 {
+			t.Errorf("sections[0] range = [%d, %d), want [0, 1)", sections[0].startIdx, sections[0].endIdx)
+		}
+	})
+
+	t.Run("handles file with no sections", func(t *testing.T) {
+		lines := []string{"Line one", "Line two"}
+		sections := parseSections(lines)
+
+		if len(sections) != 1 {
+			t.Fatalf("len(sections) = %d, want 1", len(sections))
+		}
+		if sections[0].name != "Intro" {
+			t.Errorf("sections[0].name = %q, want %q", sections[0].name, "Intro")
+		}
+	})
+
+	t.Run("handles empty file", func(t *testing.T) {
+		lines := []string{}
+		sections := parseSections(lines)
+
+		if len(sections) != 0 {
+			t.Errorf("len(sections) = %d, want 0", len(sections))
 		}
 	})
 }
@@ -400,6 +538,25 @@ func TestView(t *testing.T) {
 		}
 		if !strings.Contains(view, "2. Memory") {
 			t.Error("view should show memory option")
+		}
+	})
+
+	t.Run("section select shows sections", func(t *testing.T) {
+		m := initialModel([]string{"# Verse 1", "Line one", "# Chorus", "Line two"})
+		m.state = stateSectionSelect
+		view := m.View()
+
+		if !strings.Contains(view, "Select Section:") {
+			t.Error("view should show section selection header")
+		}
+		if !strings.Contains(view, "a. All sections") {
+			t.Error("view should show all sections option")
+		}
+		if !strings.Contains(view, "1. Verse 1") {
+			t.Error("view should show Verse 1 section")
+		}
+		if !strings.Contains(view, "2. Chorus") {
+			t.Error("view should show Chorus section")
 		}
 	})
 
