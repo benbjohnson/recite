@@ -247,6 +247,31 @@ func TestHeaderText(t *testing.T) {
 	}
 }
 
+func TestGetNextWordHint(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+		hint     string
+	}{
+		{"empty input returns first word", "", "hello world today", "hello"},
+		{"after first word returns second", "hello ", "hello world today", "world"},
+		{"mid-word returns current word", "hel", "hello world today", "hello"},
+		{"after two words returns third", "hello world ", "hello world today", "today"},
+		{"mid second word returns second", "hello wor", "hello world today", "world"},
+		{"all words typed returns empty", "hello world today ", "hello world today", ""},
+		{"beyond expected returns empty", "hello world today extra ", "hello world today", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := getNextWordHint(tt.input, tt.expected); got != tt.hint {
+				t.Errorf("getNextWordHint(%q, %q) = %q, want %q", tt.input, tt.expected, got, tt.hint)
+			}
+		})
+	}
+}
+
 func TestNormalize(t *testing.T) {
 	tests := []struct {
 		input    string
@@ -437,6 +462,109 @@ func TestHandleTypingInput(t *testing.T) {
 
 		if m.input != "Hello " {
 			t.Errorf("input = %q, want %q", m.input, "Hello ")
+		}
+	})
+
+	t.Run("tab shows hint for next word", func(t *testing.T) {
+		m := initialModel(metadata{}, []string{"Hello world today"})
+		m.state = stateTyping
+		m.input = "Hello "
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
+		m = newModel.(model)
+
+		if m.hint != "world" {
+			t.Errorf("hint = %q, want %q", m.hint, "world")
+		}
+		if m.hintLevel != 1 {
+			t.Errorf("hintLevel = %d, want 1", m.hintLevel)
+		}
+	})
+
+	t.Run("double tab shows full line", func(t *testing.T) {
+		m := initialModel(metadata{}, []string{"Hello world today"})
+		m.state = stateTyping
+		m.input = "Hello "
+
+		// First tab
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
+		m = newModel.(model)
+
+		// Second tab
+		newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+		m = newModel.(model)
+
+		if m.hint != "Hello world today" {
+			t.Errorf("hint = %q, want %q", m.hint, "Hello world today")
+		}
+		if m.hintLevel != 2 {
+			t.Errorf("hintLevel = %d, want 2", m.hintLevel)
+		}
+	})
+
+	t.Run("third tab does nothing", func(t *testing.T) {
+		m := initialModel(metadata{}, []string{"Hello world today"})
+		m.state = stateTyping
+		m.input = ""
+
+		// First tab
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyTab})
+		m = newModel.(model)
+
+		// Second tab
+		newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+		m = newModel.(model)
+
+		// Third tab - should stay the same
+		newModel, _ = m.Update(tea.KeyMsg{Type: tea.KeyTab})
+		m = newModel.(model)
+
+		if m.hint != "Hello world today" {
+			t.Errorf("hint = %q, want %q", m.hint, "Hello world today")
+		}
+		if m.hintLevel != 2 {
+			t.Errorf("hintLevel = %d, want 2", m.hintLevel)
+		}
+	})
+
+	t.Run("typing clears hint", func(t *testing.T) {
+		m := initialModel(metadata{}, []string{"Hello world"})
+		m.state = stateTyping
+		m.hint = "Hello"
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'H'}})
+		m = newModel.(model)
+
+		if m.hint != "" {
+			t.Errorf("hint = %q, want empty (should be cleared on typing)", m.hint)
+		}
+	})
+
+	t.Run("backspace clears hint", func(t *testing.T) {
+		m := initialModel(metadata{}, []string{"Hello world"})
+		m.state = stateTyping
+		m.input = "Hello"
+		m.hint = "Hello"
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+		m = newModel.(model)
+
+		if m.hint != "" {
+			t.Errorf("hint = %q, want empty (should be cleared on backspace)", m.hint)
+		}
+	})
+
+	t.Run("enter clears hint", func(t *testing.T) {
+		m := initialModel(metadata{}, []string{"Hello", "World"})
+		m.state = stateTyping
+		m.input = "Hello"
+		m.hint = "Hello"
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		m = newModel.(model)
+
+		if m.hint != "" {
+			t.Errorf("hint = %q, want empty (should be cleared on enter)", m.hint)
 		}
 	})
 }
@@ -676,6 +804,30 @@ func TestView(t *testing.T) {
 		}
 		if strings.Contains(view, "# Chorus") {
 			t.Error("view should not show hash prefix in header")
+		}
+	})
+
+	t.Run("typing state shows hint when set", func(t *testing.T) {
+		m := initialModel(metadata{}, []string{"Hello world"})
+		m.state = stateTyping
+		m.hint = "world"
+
+		view := m.View()
+
+		if !strings.Contains(view, "Hint: world") {
+			t.Error("view should show hint")
+		}
+	})
+
+	t.Run("typing state hides hint when empty", func(t *testing.T) {
+		m := initialModel(metadata{}, []string{"Hello world"})
+		m.state = stateTyping
+		m.hint = ""
+
+		view := m.View()
+
+		if strings.Contains(view, "Hint:") {
+			t.Error("view should not show hint when empty")
 		}
 	})
 }

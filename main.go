@@ -61,6 +61,8 @@ type model struct {
 	results         []bool
 	state           state
 	mode            mode
+	hint            string // current hint to display (next word or full line)
+	hintLevel       int    // 0 = no hint, 1 = word hint, 2 = full line hint
 }
 
 func isComment(line string) bool {
@@ -84,6 +86,29 @@ func normalize(s string) string {
 		}
 	}
 	return b.String()
+}
+
+// getNextWordHint returns a hint for the next word the user should type.
+// It looks at what the user has typed so far and returns the next word from the expected line.
+func getNextWordHint(input, expected string) string {
+	expectedWords := strings.Fields(expected)
+	inputWords := strings.Fields(input)
+
+	// If user is in the middle of typing a word (no trailing space), show that word
+	if len(input) > 0 && !strings.HasSuffix(input, " ") {
+		wordIdx := len(inputWords) - 1
+		if wordIdx < len(expectedWords) {
+			return expectedWords[wordIdx]
+		}
+		return ""
+	}
+
+	// User finished a word (trailing space or empty), show next word
+	wordIdx := len(inputWords)
+	if wordIdx < len(expectedWords) {
+		return expectedWords[wordIdx]
+	}
+	return ""
 }
 
 // parseSections extracts sections from lines. Each section starts with a # comment.
@@ -273,23 +298,42 @@ func (m model) handleTypingInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.results[m.currentLine] = normalize(m.input) == normalize(m.lines[m.currentLine])
 		m.currentLine++
 		m.input = ""
+		m.hint = ""
+		m.hintLevel = 0
 
 		// Skip any comment lines
 		m.skipComments()
+		return m, nil
+
+	case tea.KeyTab:
+		// First tab: show next word, second tab: show full line
+		if m.hintLevel == 0 {
+			m.hint = getNextWordHint(m.input, m.lines[m.currentLine])
+			m.hintLevel = 1
+		} else if m.hintLevel == 1 {
+			m.hint = m.lines[m.currentLine]
+			m.hintLevel = 2
+		}
 		return m, nil
 
 	case tea.KeyBackspace:
 		if len(m.input) > 0 {
 			m.input = m.input[:len(m.input)-1]
 		}
+		m.hint = ""
+		m.hintLevel = 0
 		return m, nil
 
 	case tea.KeyRunes:
 		m.input += string(msg.Runes)
+		m.hint = ""
+		m.hintLevel = 0
 		return m, nil
 
 	case tea.KeySpace:
 		m.input += " "
+		m.hint = ""
+		m.hintLevel = 0
 		return m, nil
 	}
 
@@ -386,6 +430,12 @@ func (m model) View() string {
 		b.WriteString(m.input)
 		b.WriteString("_") // Cursor
 		b.WriteString("\n")
+
+		// Show hint if available
+		if m.hint != "" {
+			b.WriteString(dimStyle.Render("Hint: " + m.hint))
+			b.WriteString("\n")
+		}
 
 	case stateResult:
 		// Show all lines with results
