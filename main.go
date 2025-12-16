@@ -15,7 +15,7 @@ var (
 	greenStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
 	redStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
 	dimStyle     = lipgloss.NewStyle().Faint(true)
-	commentStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("8")) // Gray
+	headerStyle = lipgloss.NewStyle().Bold(true).Underline(true)
 )
 
 type state int
@@ -44,6 +44,13 @@ type model struct {
 
 func isComment(line string) bool {
 	return strings.HasPrefix(strings.TrimSpace(line), "#")
+}
+
+// headerText strips the leading '#' and whitespace from a comment line
+func headerText(line string) string {
+	line = strings.TrimSpace(line)
+	line = strings.TrimPrefix(line, "#")
+	return strings.TrimSpace(line)
 }
 
 func initialModel(lines []string) model {
@@ -180,7 +187,8 @@ func (m model) View() string {
 		// Show previous lines with results
 		for i := 0; i < m.currentLine; i++ {
 			if isComment(m.lines[i]) {
-				b.WriteString(commentStyle.Render(m.lines[i]))
+				b.WriteString("\n")
+				b.WriteString(headerStyle.Render(headerText(m.lines[i])))
 			} else if m.results[i] {
 				b.WriteString(greenStyle.Render("✓ "))
 				b.WriteString(dimStyle.Render(m.lines[i]))
@@ -207,10 +215,10 @@ func (m model) View() string {
 
 	case stateResult:
 		// Show all lines with results
-		b.WriteString("\n")
 		for i, line := range m.lines {
 			if isComment(line) {
-				b.WriteString(commentStyle.Render(line))
+				b.WriteString("\n")
+				b.WriteString(headerStyle.Render(headerText(line)))
 			} else if m.results[i] {
 				b.WriteString(greenStyle.Render("✓ "))
 				b.WriteString(line)

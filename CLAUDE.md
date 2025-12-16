@@ -27,7 +27,7 @@ GitHub Actions runs on push/PR to main:
 ./recite <lyrics-file>
 ```
 
-The lyrics file should contain one line per line of lyrics. Empty lines are skipped. Lines starting with `#` are comments (displayed in gray, not typed by user).
+The lyrics file should contain one line per line of lyrics. Empty lines are skipped. Lines starting with `#` are section headers (displayed bold and underlined, not typed by user).
 
 ## Architecture
 
