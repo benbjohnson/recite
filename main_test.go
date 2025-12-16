@@ -86,6 +86,28 @@ func TestIsComment(t *testing.T) {
 	}
 }
 
+func TestHeaderText(t *testing.T) {
+	tests := []struct {
+		line     string
+		expected string
+	}{
+		{"# Verse 1", "Verse 1"},
+		{"#Chorus", "Chorus"},
+		{"  # Indented header", "Indented header"},
+		{"#  Multiple spaces", "Multiple spaces"},
+		{"# ", ""},
+		{"#", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.line, func(t *testing.T) {
+			if got := headerText(tt.line); got != tt.expected {
+				t.Errorf("headerText(%q) = %q, want %q", tt.line, got, tt.expected)
+			}
+		})
+	}
+}
+
 func TestInitialModel(t *testing.T) {
 	t.Run("basic initialization", func(t *testing.T) {
 		lines := []string{"Line one", "Line two"}
@@ -408,6 +430,39 @@ func TestView(t *testing.T) {
 
 		if !strings.Contains(view, "✗") {
 			t.Error("view should contain X for incorrect line")
+		}
+	})
+
+	t.Run("typing state shows header text without hash prefix", func(t *testing.T) {
+		m := initialModel([]string{"# Verse 1", "Line one"})
+		m.state = stateTyping
+		m.currentLine = 1
+		m.results[0] = true
+
+		view := m.View()
+
+		if !strings.Contains(view, "Verse 1") {
+			t.Error("view should show header text")
+		}
+		if strings.Contains(view, "# Verse 1") {
+			t.Error("view should not show hash prefix in header")
+		}
+	})
+
+	t.Run("result state shows header text without hash prefix", func(t *testing.T) {
+		m := initialModel([]string{"# Chorus", "Line one"})
+		m.state = stateResult
+		m.currentLine = 2
+		m.results[0] = true
+		m.results[1] = true
+
+		view := m.View()
+
+		if !strings.Contains(view, "Chorus") {
+			t.Error("view should show header text")
+		}
+		if strings.Contains(view, "# Chorus") {
+			t.Error("view should not show hash prefix in header")
 		}
 	})
 }
