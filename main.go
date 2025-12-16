@@ -9,6 +9,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -22,11 +23,18 @@ var (
 type state int
 
 const (
-	stateModeSelect state = iota
+	stateIntro state = iota
+	stateModeSelect
 	stateSectionSelect
 	stateTyping
 	stateResult
 )
+
+// metadata holds song information from YAML front matter
+type metadata struct {
+	Title  string `yaml:"title"`
+	Artist string `yaml:"artist"`
+}
 
 type section struct {
 	name     string
@@ -42,6 +50,7 @@ const (
 )
 
 type model struct {
+	meta            metadata  // song metadata from front matter
 	allLines        []string  // all lines from the file
 	lines           []string  // lines to practice (filtered by section)
 	lineIndices     []int     // maps filtered line indices to allLines indices
@@ -113,16 +122,23 @@ func parseSections(lines []string) []section {
 	return sections
 }
 
-func initialModel(lines []string) model {
+func initialModel(meta metadata, lines []string) model {
 	sections := parseSections(lines)
 
+	// Skip intro screen if no metadata is set
+	initialState := stateIntro
+	if meta.Title == "" && meta.Artist == "" {
+		initialState = stateModeSelect
+	}
+
 	return model{
+		meta:            meta,
 		allLines:        lines,
 		lines:           lines,
 		sections:        sections,
 		selectedSection: -1, // -1 means all sections
 		results:         make([]bool, len(lines)),
-		state:           stateModeSelect,
+		state:           initialState,
 	}
 }
 
@@ -145,6 +161,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch m.state {
+		case stateIntro:
+			return m.handleIntroInput(msg)
 		case stateModeSelect:
 			return m.handleModeSelectInput(msg)
 		case stateSectionSelect:
@@ -154,6 +172,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case stateResult:
 			return m.handleResultInput(msg)
 		}
+	}
+	return m, nil
+}
+
+func (m model) handleIntroInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyCtrlC, tea.KeyEsc:
+		return m, tea.Quit
+	case tea.KeyEnter, tea.KeySpace:
+		m.state = stateModeSelect
+		return m, nil
 	}
 	return m, nil
 }
@@ -294,6 +323,20 @@ func (m model) View() string {
 	var b strings.Builder
 
 	switch m.state {
+	case stateIntro:
+		b.WriteString("\n")
+		if m.meta.Title != "" {
+			b.WriteString(boldStyle.Render(m.meta.Title))
+			b.WriteString("\n")
+		}
+		if m.meta.Artist != "" {
+			b.WriteString(dimStyle.Render("by " + m.meta.Artist))
+			b.WriteString("\n")
+		}
+		b.WriteString("\n")
+		b.WriteString(dimStyle.Render("Press Enter to continue..."))
+		b.WriteString("\n")
+
 	case stateModeSelect:
 		b.WriteString("\n")
 		b.WriteString(boldStyle.Render("Select Mode:"))
@@ -388,7 +431,7 @@ func main() {
 	}
 
 	filename := os.Args[1]
-	lines, err := readLines(filename)
+	meta, lines, err := readFile(filename)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading file: %v\n", err)
 		os.Exit(1)
@@ -399,29 +442,60 @@ func main() {
 		os.Exit(1)
 	}
 
-	p := tea.NewProgram(initialModel(lines))
+	p := tea.NewProgram(initialModel(meta, lines))
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error running program: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func readLines(filename string) ([]string, error) {
+func readFile(filename string) (metadata, []string, error) {
 	file, err := os.Open(filename)
 	if err != nil {
-		return nil, err
+		return metadata{}, nil, err
 	}
 	defer file.Close()
 
-	var lines []string
+	var allContent []string
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
-		line := scanner.Text()
-		// Skip empty lines
-		if strings.TrimSpace(line) != "" {
-			lines = append(lines, line)
+		allContent = append(allContent, scanner.Text())
+	}
+	if err := scanner.Err(); err != nil {
+		return metadata{}, nil, err
+	}
+
+	var meta metadata
+	var lines []string
+	startIdx := 0
+
+	// Check for YAML front matter
+	if len(allContent) > 0 && strings.TrimSpace(allContent[0]) == "---" {
+		// Find closing ---
+		endIdx := -1
+		for i := 1; i < len(allContent); i++ {
+			if strings.TrimSpace(allContent[i]) == "---" {
+				endIdx = i
+				break
+			}
+		}
+
+		if endIdx > 0 {
+			// Parse YAML between the delimiters
+			yamlContent := strings.Join(allContent[1:endIdx], "\n")
+			if err := yaml.Unmarshal([]byte(yamlContent), &meta); err != nil {
+				return metadata{}, nil, fmt.Errorf("invalid YAML front matter: %w", err)
+			}
+			startIdx = endIdx + 1
 		}
 	}
 
-	return lines, scanner.Err()
+	// Collect non-empty lines after front matter
+	for i := startIdx; i < len(allContent); i++ {
+		if strings.TrimSpace(allContent[i]) != "" {
+			lines = append(lines, allContent[i])
+		}
+	}
+
+	return meta, lines, nil
 }
