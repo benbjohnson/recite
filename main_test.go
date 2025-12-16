@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -9,14 +10,14 @@ import (
 
 func TestModeSelect(t *testing.T) {
 	t.Run("initial model starts in mode select state", func(t *testing.T) {
-		m := initialModel([]string{"Line one"})
+		m := initialModel(metadata{}, []string{"Line one"})
 		if m.state != stateModeSelect {
 			t.Errorf("state = %v, want stateModeSelect", m.state)
 		}
 	})
 
 	t.Run("pressing 1 selects practice mode", func(t *testing.T) {
-		m := initialModel([]string{"Line one"})
+		m := initialModel(metadata{}, []string{"Line one"})
 
 		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'1'}})
 		m = newModel.(model)
@@ -30,7 +31,7 @@ func TestModeSelect(t *testing.T) {
 	})
 
 	t.Run("pressing 2 selects memory mode", func(t *testing.T) {
-		m := initialModel([]string{"Line one"})
+		m := initialModel(metadata{}, []string{"Line one"})
 
 		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
 		m = newModel.(model)
@@ -44,7 +45,7 @@ func TestModeSelect(t *testing.T) {
 	})
 
 	t.Run("ctrl+c quits from mode select", func(t *testing.T) {
-		m := initialModel([]string{"Line one"})
+		m := initialModel(metadata{}, []string{"Line one"})
 		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 
 		if cmd == nil {
@@ -55,7 +56,7 @@ func TestModeSelect(t *testing.T) {
 
 func TestSectionSelect(t *testing.T) {
 	t.Run("pressing a selects all sections", func(t *testing.T) {
-		m := initialModel([]string{"# Verse 1", "Line one", "# Chorus", "Line two"})
+		m := initialModel(metadata{}, []string{"# Verse 1", "Line one", "# Chorus", "Line two"})
 		m.state = stateSectionSelect
 
 		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
@@ -73,7 +74,7 @@ func TestSectionSelect(t *testing.T) {
 	})
 
 	t.Run("pressing 1 selects first section", func(t *testing.T) {
-		m := initialModel([]string{"# Verse 1", "Line one", "# Chorus", "Line two"})
+		m := initialModel(metadata{}, []string{"# Verse 1", "Line one", "# Chorus", "Line two"})
 		m.state = stateSectionSelect
 
 		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'1'}})
@@ -91,7 +92,7 @@ func TestSectionSelect(t *testing.T) {
 	})
 
 	t.Run("pressing 2 selects second section", func(t *testing.T) {
-		m := initialModel([]string{"# Verse 1", "Line one", "# Chorus", "Line two"})
+		m := initialModel(metadata{}, []string{"# Verse 1", "Line one", "# Chorus", "Line two"})
 		m.state = stateSectionSelect
 
 		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
@@ -109,7 +110,7 @@ func TestSectionSelect(t *testing.T) {
 	})
 
 	t.Run("section selection skips leading comments", func(t *testing.T) {
-		m := initialModel([]string{"# Verse 1", "Line one"})
+		m := initialModel(metadata{}, []string{"# Verse 1", "Line one"})
 		m.state = stateSectionSelect
 
 		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
@@ -121,7 +122,7 @@ func TestSectionSelect(t *testing.T) {
 	})
 
 	t.Run("ctrl+c quits from section select", func(t *testing.T) {
-		m := initialModel([]string{"# Verse 1", "Line one"})
+		m := initialModel(metadata{}, []string{"# Verse 1", "Line one"})
 		m.state = stateSectionSelect
 		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 
@@ -131,7 +132,7 @@ func TestSectionSelect(t *testing.T) {
 	})
 
 	t.Run("invalid section number does nothing", func(t *testing.T) {
-		m := initialModel([]string{"# Verse 1", "Line one"})
+		m := initialModel(metadata{}, []string{"# Verse 1", "Line one"})
 		m.state = stateSectionSelect
 
 		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'9'}})
@@ -278,7 +279,7 @@ func TestNormalize(t *testing.T) {
 func TestInitialModel(t *testing.T) {
 	t.Run("basic initialization", func(t *testing.T) {
 		lines := []string{"Line one", "Line two"}
-		m := initialModel(lines)
+		m := initialModel(metadata{}, lines)
 
 		if m.currentLine != 0 {
 			t.Errorf("currentLine = %d, want 0", m.currentLine)
@@ -294,7 +295,7 @@ func TestInitialModel(t *testing.T) {
 
 func TestHandleTypingInput(t *testing.T) {
 	t.Run("correct input", func(t *testing.T) {
-		m := initialModel([]string{"Hello world", "Second line"})
+		m := initialModel(metadata{}, []string{"Hello world", "Second line"})
 		m.state = stateTyping
 		m.input = "Hello world"
 
@@ -310,7 +311,7 @@ func TestHandleTypingInput(t *testing.T) {
 	})
 
 	t.Run("case insensitive comparison", func(t *testing.T) {
-		m := initialModel([]string{"Hello World"})
+		m := initialModel(metadata{}, []string{"Hello World"})
 		m.state = stateTyping
 		m.input = "hello world"
 
@@ -323,7 +324,7 @@ func TestHandleTypingInput(t *testing.T) {
 	})
 
 	t.Run("incorrect input", func(t *testing.T) {
-		m := initialModel([]string{"Hello world"})
+		m := initialModel(metadata{}, []string{"Hello world"})
 		m.state = stateTyping
 		m.input = "Wrong input"
 
@@ -336,7 +337,7 @@ func TestHandleTypingInput(t *testing.T) {
 	})
 
 	t.Run("whitespace trimming", func(t *testing.T) {
-		m := initialModel([]string{"Hello world"})
+		m := initialModel(metadata{}, []string{"Hello world"})
 		m.state = stateTyping
 		m.input = "  Hello world  "
 
@@ -349,7 +350,7 @@ func TestHandleTypingInput(t *testing.T) {
 	})
 
 	t.Run("ignores punctuation", func(t *testing.T) {
-		m := initialModel([]string{"Don't stop believin'"})
+		m := initialModel(metadata{}, []string{"Don't stop believin'"})
 		m.state = stateTyping
 		m.input = "dont stop believin"
 
@@ -362,7 +363,7 @@ func TestHandleTypingInput(t *testing.T) {
 	})
 
 	t.Run("ignores extra spaces", func(t *testing.T) {
-		m := initialModel([]string{"Hello world"})
+		m := initialModel(metadata{}, []string{"Hello world"})
 		m.state = stateTyping
 		m.input = "Hello    world"
 
@@ -375,7 +376,7 @@ func TestHandleTypingInput(t *testing.T) {
 	})
 
 	t.Run("skips comments after enter", func(t *testing.T) {
-		m := initialModel([]string{"First line", "# Comment", "Third line"})
+		m := initialModel(metadata{}, []string{"First line", "# Comment", "Third line"})
 		m.state = stateTyping
 		m.input = "First line"
 
@@ -388,7 +389,7 @@ func TestHandleTypingInput(t *testing.T) {
 	})
 
 	t.Run("transitions to result after last line", func(t *testing.T) {
-		m := initialModel([]string{"Only line"})
+		m := initialModel(metadata{}, []string{"Only line"})
 		m.state = stateTyping
 		m.input = "Only line"
 
@@ -401,7 +402,7 @@ func TestHandleTypingInput(t *testing.T) {
 	})
 
 	t.Run("backspace removes character", func(t *testing.T) {
-		m := initialModel([]string{"Test"})
+		m := initialModel(metadata{}, []string{"Test"})
 		m.state = stateTyping
 		m.input = "Hello"
 
@@ -414,7 +415,7 @@ func TestHandleTypingInput(t *testing.T) {
 	})
 
 	t.Run("typing adds characters", func(t *testing.T) {
-		m := initialModel([]string{"Test"})
+		m := initialModel(metadata{}, []string{"Test"})
 		m.state = stateTyping
 		m.input = "He"
 
@@ -427,7 +428,7 @@ func TestHandleTypingInput(t *testing.T) {
 	})
 
 	t.Run("space adds space", func(t *testing.T) {
-		m := initialModel([]string{"Test"})
+		m := initialModel(metadata{}, []string{"Test"})
 		m.state = stateTyping
 		m.input = "Hello"
 
@@ -442,7 +443,7 @@ func TestHandleTypingInput(t *testing.T) {
 
 func TestHandleResultInput(t *testing.T) {
 	t.Run("y restarts", func(t *testing.T) {
-		m := initialModel([]string{"Line one", "Line two"})
+		m := initialModel(metadata{}, []string{"Line one", "Line two"})
 		m.state = stateResult
 		m.currentLine = 2
 		m.results[0] = true
@@ -463,7 +464,7 @@ func TestHandleResultInput(t *testing.T) {
 	})
 
 	t.Run("Y restarts (uppercase)", func(t *testing.T) {
-		m := initialModel([]string{"Line one"})
+		m := initialModel(metadata{}, []string{"Line one"})
 		m.state = stateResult
 		m.currentLine = 1
 
@@ -476,7 +477,7 @@ func TestHandleResultInput(t *testing.T) {
 	})
 
 	t.Run("restart skips leading comments", func(t *testing.T) {
-		m := initialModel([]string{"# Comment", "Real line"})
+		m := initialModel(metadata{}, []string{"# Comment", "Real line"})
 		m.state = stateResult
 		m.currentLine = 2
 
@@ -489,7 +490,7 @@ func TestHandleResultInput(t *testing.T) {
 	})
 
 	t.Run("restart preserves mode", func(t *testing.T) {
-		m := initialModel([]string{"Line one"})
+		m := initialModel(metadata{}, []string{"Line one"})
 		m.mode = modeMemory
 		m.state = stateResult
 		m.currentLine = 1
@@ -503,7 +504,7 @@ func TestHandleResultInput(t *testing.T) {
 	})
 
 	t.Run("n quits", func(t *testing.T) {
-		m := initialModel([]string{"Line one"})
+		m := initialModel(metadata{}, []string{"Line one"})
 		m.state = stateResult
 
 		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
@@ -514,7 +515,7 @@ func TestHandleResultInput(t *testing.T) {
 	})
 
 	t.Run("N quits (uppercase)", func(t *testing.T) {
-		m := initialModel([]string{"Line one"})
+		m := initialModel(metadata{}, []string{"Line one"})
 		m.state = stateResult
 
 		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'N'}})
@@ -527,7 +528,7 @@ func TestHandleResultInput(t *testing.T) {
 
 func TestView(t *testing.T) {
 	t.Run("mode select shows menu", func(t *testing.T) {
-		m := initialModel([]string{"Test line"})
+		m := initialModel(metadata{}, []string{"Test line"})
 		view := m.View()
 
 		if !strings.Contains(view, "Select Mode:") {
@@ -542,7 +543,7 @@ func TestView(t *testing.T) {
 	})
 
 	t.Run("section select shows sections", func(t *testing.T) {
-		m := initialModel([]string{"# Verse 1", "Line one", "# Chorus", "Line two"})
+		m := initialModel(metadata{}, []string{"# Verse 1", "Line one", "# Chorus", "Line two"})
 		m.state = stateSectionSelect
 		view := m.View()
 
@@ -561,7 +562,7 @@ func TestView(t *testing.T) {
 	})
 
 	t.Run("practice mode shows current line", func(t *testing.T) {
-		m := initialModel([]string{"Test line"})
+		m := initialModel(metadata{}, []string{"Test line"})
 		m.state = stateTyping
 		m.mode = modePractice
 		view := m.View()
@@ -575,7 +576,7 @@ func TestView(t *testing.T) {
 	})
 
 	t.Run("memory mode hides current line", func(t *testing.T) {
-		m := initialModel([]string{"Test line"})
+		m := initialModel(metadata{}, []string{"Test line"})
 		m.state = stateTyping
 		m.mode = modeMemory
 		view := m.View()
@@ -592,7 +593,7 @@ func TestView(t *testing.T) {
 	})
 
 	t.Run("result state shows score excluding comments", func(t *testing.T) {
-		m := initialModel([]string{"# Comment", "Line one", "Line two"})
+		m := initialModel(metadata{}, []string{"# Comment", "Line one", "Line two"})
 		m.state = stateResult
 		m.currentLine = 3
 		m.results[0] = true // comment
@@ -608,7 +609,7 @@ func TestView(t *testing.T) {
 	})
 
 	t.Run("result state shows try again prompt", func(t *testing.T) {
-		m := initialModel([]string{"Line one"})
+		m := initialModel(metadata{}, []string{"Line one"})
 		m.state = stateResult
 		m.currentLine = 1
 
@@ -620,7 +621,7 @@ func TestView(t *testing.T) {
 	})
 
 	t.Run("shows checkmark for correct lines", func(t *testing.T) {
-		m := initialModel([]string{"Line one", "Line two"})
+		m := initialModel(metadata{}, []string{"Line one", "Line two"})
 		m.state = stateTyping
 		m.currentLine = 1
 		m.results[0] = true
@@ -633,7 +634,7 @@ func TestView(t *testing.T) {
 	})
 
 	t.Run("shows X for incorrect lines", func(t *testing.T) {
-		m := initialModel([]string{"Line one", "Line two"})
+		m := initialModel(metadata{}, []string{"Line one", "Line two"})
 		m.state = stateTyping
 		m.currentLine = 1
 		m.results[0] = false
@@ -646,7 +647,7 @@ func TestView(t *testing.T) {
 	})
 
 	t.Run("typing state shows header text without hash prefix", func(t *testing.T) {
-		m := initialModel([]string{"# Verse 1", "Line one"})
+		m := initialModel(metadata{}, []string{"# Verse 1", "Line one"})
 		m.state = stateTyping
 		m.currentLine = 1
 		m.results[0] = true
@@ -662,7 +663,7 @@ func TestView(t *testing.T) {
 	})
 
 	t.Run("result state shows header text without hash prefix", func(t *testing.T) {
-		m := initialModel([]string{"# Chorus", "Line one"})
+		m := initialModel(metadata{}, []string{"# Chorus", "Line one"})
 		m.state = stateResult
 		m.currentLine = 2
 		m.results[0] = true
@@ -681,7 +682,7 @@ func TestView(t *testing.T) {
 
 func TestQuitCommands(t *testing.T) {
 	t.Run("ctrl+c quits in mode select state", func(t *testing.T) {
-		m := initialModel([]string{"Test"})
+		m := initialModel(metadata{}, []string{"Test"})
 		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 
 		if cmd == nil {
@@ -690,7 +691,7 @@ func TestQuitCommands(t *testing.T) {
 	})
 
 	t.Run("escape quits in mode select state", func(t *testing.T) {
-		m := initialModel([]string{"Test"})
+		m := initialModel(metadata{}, []string{"Test"})
 		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 
 		if cmd == nil {
@@ -699,7 +700,7 @@ func TestQuitCommands(t *testing.T) {
 	})
 
 	t.Run("ctrl+c quits in typing state", func(t *testing.T) {
-		m := initialModel([]string{"Test"})
+		m := initialModel(metadata{}, []string{"Test"})
 		m.state = stateTyping
 		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 
@@ -709,7 +710,7 @@ func TestQuitCommands(t *testing.T) {
 	})
 
 	t.Run("escape quits in typing state", func(t *testing.T) {
-		m := initialModel([]string{"Test"})
+		m := initialModel(metadata{}, []string{"Test"})
 		m.state = stateTyping
 		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 
@@ -719,7 +720,7 @@ func TestQuitCommands(t *testing.T) {
 	})
 
 	t.Run("ctrl+c quits in result state", func(t *testing.T) {
-		m := initialModel([]string{"Test"})
+		m := initialModel(metadata{}, []string{"Test"})
 		m.state = stateResult
 		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 
@@ -729,12 +730,176 @@ func TestQuitCommands(t *testing.T) {
 	})
 
 	t.Run("escape quits in result state", func(t *testing.T) {
-		m := initialModel([]string{"Test"})
+		m := initialModel(metadata{}, []string{"Test"})
 		m.state = stateResult
 		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 
 		if cmd == nil {
 			t.Error("expected quit command")
+		}
+	})
+}
+
+func TestIntroScreen(t *testing.T) {
+	t.Run("shows intro state when metadata is set", func(t *testing.T) {
+		meta := metadata{Title: "Test Song", Artist: "Test Artist"}
+		m := initialModel(meta, []string{"Line one"})
+
+		if m.state != stateIntro {
+			t.Errorf("state = %v, want stateIntro", m.state)
+		}
+	})
+
+	t.Run("skips intro state when no metadata", func(t *testing.T) {
+		m := initialModel(metadata{}, []string{"Line one"})
+
+		if m.state != stateModeSelect {
+			t.Errorf("state = %v, want stateModeSelect (should skip intro)", m.state)
+		}
+	})
+
+	t.Run("intro view shows title and artist", func(t *testing.T) {
+		meta := metadata{Title: "Amazing Grace", Artist: "John Newton"}
+		m := initialModel(meta, []string{"Line one"})
+		view := m.View()
+
+		if !strings.Contains(view, "Amazing Grace") {
+			t.Error("intro should show title")
+		}
+		if !strings.Contains(view, "John Newton") {
+			t.Error("intro should show artist")
+		}
+		if !strings.Contains(view, "Press Enter") {
+			t.Error("intro should show continue prompt")
+		}
+	})
+
+	t.Run("enter advances from intro to mode select", func(t *testing.T) {
+		meta := metadata{Title: "Test", Artist: "Artist"}
+		m := initialModel(meta, []string{"Line one"})
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		m = newModel.(model)
+
+		if m.state != stateModeSelect {
+			t.Errorf("state = %v, want stateModeSelect", m.state)
+		}
+	})
+
+	t.Run("space advances from intro to mode select", func(t *testing.T) {
+		meta := metadata{Title: "Test", Artist: "Artist"}
+		m := initialModel(meta, []string{"Line one"})
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeySpace})
+		m = newModel.(model)
+
+		if m.state != stateModeSelect {
+			t.Errorf("state = %v, want stateModeSelect", m.state)
+		}
+	})
+
+	t.Run("ctrl+c quits from intro", func(t *testing.T) {
+		meta := metadata{Title: "Test", Artist: "Artist"}
+		m := initialModel(meta, []string{"Line one"})
+		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+
+		if cmd == nil {
+			t.Error("expected quit command")
+		}
+	})
+}
+
+func TestReadFile(t *testing.T) {
+	t.Run("parses YAML front matter", func(t *testing.T) {
+		// Create temp file with front matter
+		content := `---
+title: Amazing Grace
+artist: John Newton
+---
+How sweet the sound
+That saved a wretch like me
+`
+		f, err := os.CreateTemp("", "lyrics-*.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(f.Name())
+		if _, err := f.WriteString(content); err != nil {
+			t.Fatal(err)
+		}
+		f.Close()
+
+		meta, lines, err := readFile(f.Name())
+		if err != nil {
+			t.Fatalf("readFile error: %v", err)
+		}
+
+		if meta.Title != "Amazing Grace" {
+			t.Errorf("Title = %q, want %q", meta.Title, "Amazing Grace")
+		}
+		if meta.Artist != "John Newton" {
+			t.Errorf("Artist = %q, want %q", meta.Artist, "John Newton")
+		}
+		if len(lines) != 2 {
+			t.Errorf("len(lines) = %d, want 2", len(lines))
+		}
+		if lines[0] != "How sweet the sound" {
+			t.Errorf("lines[0] = %q, want %q", lines[0], "How sweet the sound")
+		}
+	})
+
+	t.Run("handles file without front matter", func(t *testing.T) {
+		content := `Line one
+Line two
+`
+		f, err := os.CreateTemp("", "lyrics-*.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(f.Name())
+		if _, err := f.WriteString(content); err != nil {
+			t.Fatal(err)
+		}
+		f.Close()
+
+		meta, lines, err := readFile(f.Name())
+		if err != nil {
+			t.Fatalf("readFile error: %v", err)
+		}
+
+		if meta.Title != "" || meta.Artist != "" {
+			t.Error("metadata should be empty for file without front matter")
+		}
+		if len(lines) != 2 {
+			t.Errorf("len(lines) = %d, want 2", len(lines))
+		}
+	})
+
+	t.Run("skips empty lines", func(t *testing.T) {
+		content := `---
+title: Test
+---
+Line one
+
+Line two
+`
+		f, err := os.CreateTemp("", "lyrics-*.txt")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer os.Remove(f.Name())
+		if _, err := f.WriteString(content); err != nil {
+			t.Fatal(err)
+		}
+		f.Close()
+
+		_, lines, err := readFile(f.Name())
+		if err != nil {
+			t.Fatalf("readFile error: %v", err)
+		}
+
+		if len(lines) != 2 {
+			t.Errorf("len(lines) = %d, want 2 (should skip empty lines)", len(lines))
 		}
 	})
 }

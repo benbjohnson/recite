@@ -40,6 +40,10 @@ After typing each line and pressing Enter, you'll see whether you got it right (
 Create a text file with one line per line of lyrics:
 
 ```
+---
+title: Twinkle Twinkle Little Star
+artist: Jane Taylor
+---
 # Verse 1
 Twinkle twinkle little star
 How I wonder what you are
@@ -49,8 +53,9 @@ Up above the world so high
 Like a diamond in the sky
 ```
 
+- **YAML front matter** (optional) - Add `title` and `artist` between `---` delimiters to display an intro screen
 - Empty lines are skipped
-- Lines starting with `#` are comments (displayed in gray, not typed by user)
+- Lines starting with `#` are section headers (displayed bold and underlined, not typed by user)
 
 ### Controls
 
