@@ -39,4 +39,4 @@ The model tracks current line index, user input, and per-line results (correct/i
 
 ## Version control
 
-When creating a new feature, create a feature branch in git.
+Do not commit directly to main in git.
