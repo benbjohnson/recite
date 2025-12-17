@@ -8,52 +8,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-func TestModeSelect(t *testing.T) {
-	t.Run("initial model starts in mode select state", func(t *testing.T) {
-		m := initialModel(metadata{}, []string{"Line one"})
-		if m.state != stateModeSelect {
-			t.Errorf("state = %v, want stateModeSelect", m.state)
-		}
-	})
-
-	t.Run("pressing 1 selects practice mode", func(t *testing.T) {
-		m := initialModel(metadata{}, []string{"Line one"})
-
-		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'1'}})
-		m = newModel.(model)
-
-		if m.mode != modePractice {
-			t.Errorf("mode = %v, want modePractice", m.mode)
-		}
-		if m.state != stateSectionSelect {
-			t.Errorf("state = %v, want stateSectionSelect", m.state)
-		}
-	})
-
-	t.Run("pressing 2 selects memory mode", func(t *testing.T) {
-		m := initialModel(metadata{}, []string{"Line one"})
-
-		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'2'}})
-		m = newModel.(model)
-
-		if m.mode != modeMemory {
-			t.Errorf("mode = %v, want modeMemory", m.mode)
-		}
-		if m.state != stateSectionSelect {
-			t.Errorf("state = %v, want stateSectionSelect", m.state)
-		}
-	})
-
-	t.Run("ctrl+c quits from mode select", func(t *testing.T) {
-		m := initialModel(metadata{}, []string{"Line one"})
-		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
-
-		if cmd == nil {
-			t.Error("expected quit command")
-		}
-	})
-}
-
 func TestSectionSelect(t *testing.T) {
 	t.Run("pressing a selects all sections", func(t *testing.T) {
 		m := initialModel(metadata{}, []string{"# Verse 1", "Line one", "# Chorus", "Line two"})
@@ -309,8 +263,8 @@ func TestInitialModel(t *testing.T) {
 		if m.currentLine != 0 {
 			t.Errorf("currentLine = %d, want 0", m.currentLine)
 		}
-		if m.state != stateModeSelect {
-			t.Errorf("state = %v, want stateModeSelect", m.state)
+		if m.state != stateSectionSelect {
+			t.Errorf("state = %v, want stateSectionSelect", m.state)
 		}
 		if len(m.results) != 2 {
 			t.Errorf("len(results) = %d, want 2", len(m.results))
@@ -617,20 +571,6 @@ func TestHandleResultInput(t *testing.T) {
 		}
 	})
 
-	t.Run("restart preserves mode", func(t *testing.T) {
-		m := initialModel(metadata{}, []string{"Line one"})
-		m.mode = modeMemory
-		m.state = stateResult
-		m.currentLine = 1
-
-		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
-		m = newModel.(model)
-
-		if m.mode != modeMemory {
-			t.Errorf("mode = %v, want modeMemory (should preserve mode on restart)", m.mode)
-		}
-	})
-
 	t.Run("n quits", func(t *testing.T) {
 		m := initialModel(metadata{}, []string{"Line one"})
 		m.state = stateResult
@@ -655,21 +595,6 @@ func TestHandleResultInput(t *testing.T) {
 }
 
 func TestView(t *testing.T) {
-	t.Run("mode select shows menu", func(t *testing.T) {
-		m := initialModel(metadata{}, []string{"Test line"})
-		view := m.View()
-
-		if !strings.Contains(view, "Select Mode:") {
-			t.Error("view should show mode selection header")
-		}
-		if !strings.Contains(view, "1. Practice") {
-			t.Error("view should show practice option")
-		}
-		if !strings.Contains(view, "2. Memory") {
-			t.Error("view should show memory option")
-		}
-	})
-
 	t.Run("section select shows sections", func(t *testing.T) {
 		m := initialModel(metadata{}, []string{"# Verse 1", "Line one", "# Chorus", "Line two"})
 		m.state = stateSectionSelect
@@ -689,32 +614,24 @@ func TestView(t *testing.T) {
 		}
 	})
 
-	t.Run("practice mode shows current line", func(t *testing.T) {
-		m := initialModel(metadata{}, []string{"Test line"})
-		m.state = stateTyping
-		m.mode = modePractice
+	t.Run("section select shows title and artist when set", func(t *testing.T) {
+		meta := metadata{Title: "Amazing Grace", Artist: "John Newton"}
+		m := initialModel(meta, []string{"Line one"})
 		view := m.View()
 
-		if !strings.Contains(view, "Test line") {
-			t.Error("practice mode should show current line")
+		if !strings.Contains(view, "Amazing Grace") {
+			t.Error("section select should show title")
 		}
-		if !strings.Contains(view, "_") {
-			t.Error("view should contain cursor")
+		if !strings.Contains(view, "John Newton") {
+			t.Error("section select should show artist")
 		}
 	})
 
-	t.Run("memory mode hides current line", func(t *testing.T) {
+	t.Run("typing state shows cursor", func(t *testing.T) {
 		m := initialModel(metadata{}, []string{"Test line"})
 		m.state = stateTyping
-		m.mode = modeMemory
 		view := m.View()
 
-		if strings.Contains(view, "Test line") {
-			t.Error("memory mode should not show current line")
-		}
-		if !strings.Contains(view, "(type from memory)") {
-			t.Error("memory mode should show memory prompt")
-		}
 		if !strings.Contains(view, "_") {
 			t.Error("view should contain cursor")
 		}
@@ -833,7 +750,7 @@ func TestView(t *testing.T) {
 }
 
 func TestQuitCommands(t *testing.T) {
-	t.Run("ctrl+c quits in mode select state", func(t *testing.T) {
+	t.Run("ctrl+c quits in section select state", func(t *testing.T) {
 		m := initialModel(metadata{}, []string{"Test"})
 		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 
@@ -842,7 +759,7 @@ func TestQuitCommands(t *testing.T) {
 		}
 	})
 
-	t.Run("escape quits in mode select state", func(t *testing.T) {
+	t.Run("escape quits in section select state", func(t *testing.T) {
 		m := initialModel(metadata{}, []string{"Test"})
 		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
 
@@ -885,75 +802,6 @@ func TestQuitCommands(t *testing.T) {
 		m := initialModel(metadata{}, []string{"Test"})
 		m.state = stateResult
 		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
-
-		if cmd == nil {
-			t.Error("expected quit command")
-		}
-	})
-}
-
-func TestIntroScreen(t *testing.T) {
-	t.Run("shows intro state when metadata is set", func(t *testing.T) {
-		meta := metadata{Title: "Test Song", Artist: "Test Artist"}
-		m := initialModel(meta, []string{"Line one"})
-
-		if m.state != stateIntro {
-			t.Errorf("state = %v, want stateIntro", m.state)
-		}
-	})
-
-	t.Run("skips intro state when no metadata", func(t *testing.T) {
-		m := initialModel(metadata{}, []string{"Line one"})
-
-		if m.state != stateModeSelect {
-			t.Errorf("state = %v, want stateModeSelect (should skip intro)", m.state)
-		}
-	})
-
-	t.Run("intro view shows title and artist", func(t *testing.T) {
-		meta := metadata{Title: "Amazing Grace", Artist: "John Newton"}
-		m := initialModel(meta, []string{"Line one"})
-		view := m.View()
-
-		if !strings.Contains(view, "Amazing Grace") {
-			t.Error("intro should show title")
-		}
-		if !strings.Contains(view, "John Newton") {
-			t.Error("intro should show artist")
-		}
-		if !strings.Contains(view, "Press Enter") {
-			t.Error("intro should show continue prompt")
-		}
-	})
-
-	t.Run("enter advances from intro to mode select", func(t *testing.T) {
-		meta := metadata{Title: "Test", Artist: "Artist"}
-		m := initialModel(meta, []string{"Line one"})
-
-		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-		m = newModel.(model)
-
-		if m.state != stateModeSelect {
-			t.Errorf("state = %v, want stateModeSelect", m.state)
-		}
-	})
-
-	t.Run("space advances from intro to mode select", func(t *testing.T) {
-		meta := metadata{Title: "Test", Artist: "Artist"}
-		m := initialModel(meta, []string{"Line one"})
-
-		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeySpace})
-		m = newModel.(model)
-
-		if m.state != stateModeSelect {
-			t.Errorf("state = %v, want stateModeSelect", m.state)
-		}
-	})
-
-	t.Run("ctrl+c quits from intro", func(t *testing.T) {
-		meta := metadata{Title: "Test", Artist: "Artist"}
-		m := initialModel(meta, []string{"Line one"})
-		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 
 		if cmd == nil {
 			t.Error("expected quit command")
