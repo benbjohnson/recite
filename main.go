@@ -78,6 +78,59 @@ func normalize(s string) string {
 	return b.String()
 }
 
+// normalizeWord normalizes a single word, removing punctuation and lowercasing
+func normalizeWord(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			b.WriteRune(unicode.ToLower(r))
+		}
+	}
+	return b.String()
+}
+
+// wordsMatch compares two words with tolerance for g-dropping
+// (e.g., "stayin" matches "staying", "nothin" matches "nothing")
+// Only applies to words where the "-in" form is at least 5 characters
+// to avoid matching unrelated words like "sin" and "sing"
+func wordsMatch(a, b string) bool {
+	a = normalizeWord(a)
+	b = normalizeWord(b)
+
+	if a == b {
+		return true
+	}
+
+	// Check for g-dropping: "in" ending vs "ing" ending
+	// Require the "-in" form to be at least 5 chars (e.g., "stayin" not "sin")
+	if strings.HasSuffix(a, "in") && strings.HasSuffix(b, "ing") && len(a) >= 5 {
+		return a == b[:len(b)-1] // compare "stayin" with "stayin" (from "staying")
+	}
+	if strings.HasSuffix(b, "in") && strings.HasSuffix(a, "ing") && len(b) >= 5 {
+		return b == a[:len(a)-1]
+	}
+
+	return false
+}
+
+// linesMatch compares two lines word by word with forgiving comparison
+func linesMatch(input, expected string) bool {
+	inputWords := strings.Fields(input)
+	expectedWords := strings.Fields(expected)
+
+	if len(inputWords) != len(expectedWords) {
+		return false
+	}
+
+	for i := range inputWords {
+		if !wordsMatch(inputWords[i], expectedWords[i]) {
+			return false
+		}
+	}
+
+	return true
+}
+
 // getNextWordHint returns a hint for the next word the user should type.
 // It looks at what the user has typed so far and returns the next word from the expected line.
 func getNextWordHint(input, expected string) string {
@@ -242,8 +295,8 @@ func (m model) handleTypingInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Quit
 
 	case tea.KeyEnter:
-		// Check if input matches current line (ignoring punctuation, spaces, and case)
-		m.results[m.currentLine] = normalize(m.input) == normalize(m.lines[m.currentLine])
+		// Check if input matches current line (ignoring punctuation, spaces, case, and g-dropping)
+		m.results[m.currentLine] = linesMatch(m.input, m.lines[m.currentLine])
 		m.currentLine++
 		m.input = ""
 		m.hint = ""

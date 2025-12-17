@@ -226,6 +226,61 @@ func TestGetNextWordHint(t *testing.T) {
 	}
 }
 
+func TestWordsMatch(t *testing.T) {
+	tests := []struct {
+		a, b  string
+		match bool
+	}{
+		{"hello", "hello", true},
+		{"Hello", "hello", true},
+		{"stayin", "staying", true},
+		{"staying", "stayin", true},
+		{"nothin", "nothing", true},
+		{"nothing", "nothin", true},
+		{"believin", "believing", true},
+		{"runnin", "running", true},
+		{"stayin'", "staying", true},
+		{"hello", "world", false},
+		{"sin", "sing", false}, // "sin" is a different word, not g-dropping
+		{"in", "ing", false},   // too short to be g-dropping
+		{"win", "wing", false}, // different words
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.a+"_"+tt.b, func(t *testing.T) {
+			if got := wordsMatch(tt.a, tt.b); got != tt.match {
+				t.Errorf("wordsMatch(%q, %q) = %v, want %v", tt.a, tt.b, got, tt.match)
+			}
+		})
+	}
+}
+
+func TestLinesMatch(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+		match    bool
+	}{
+		{"exact match", "hello world", "hello world", true},
+		{"case insensitive", "Hello World", "hello world", true},
+		{"g-dropping single word", "stayin alive", "staying alive", true},
+		{"g-dropping multiple words", "keepin on movin", "keeping on moving", true},
+		{"punctuation ignored", "dont stop", "don't stop", true},
+		{"mixed g-dropping and punctuation", "dont stop believin", "don't stop believin'", true},
+		{"wrong word count", "hello", "hello world", false},
+		{"wrong words", "hello world", "goodbye world", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := linesMatch(tt.input, tt.expected); got != tt.match {
+				t.Errorf("linesMatch(%q, %q) = %v, want %v", tt.input, tt.expected, got, tt.match)
+			}
+		})
+	}
+}
+
 func TestNormalize(t *testing.T) {
 	tests := []struct {
 		input    string
@@ -351,6 +406,19 @@ func TestHandleTypingInput(t *testing.T) {
 
 		if !m.results[0] {
 			t.Error("input with extra spaces should match")
+		}
+	})
+
+	t.Run("g-dropping tolerance", func(t *testing.T) {
+		m := initialModel(metadata{}, []string{"Just a small town girl, livin' in a lonely world"})
+		m.state = stateTyping
+		m.input = "just a small town girl living in a lonely world"
+
+		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		m = newModel.(model)
+
+		if !m.results[0] {
+			t.Error("g-dropping input should match (livin vs living)")
 		}
 	})
 
