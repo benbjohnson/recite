@@ -614,6 +614,19 @@ func TestView(t *testing.T) {
 		}
 	})
 
+	t.Run("section select shows title and artist when set", func(t *testing.T) {
+		meta := metadata{Title: "Amazing Grace", Artist: "John Newton"}
+		m := initialModel(meta, []string{"Line one"})
+		view := m.View()
+
+		if !strings.Contains(view, "Amazing Grace") {
+			t.Error("section select should show title")
+		}
+		if !strings.Contains(view, "John Newton") {
+			t.Error("section select should show artist")
+		}
+	})
+
 	t.Run("typing state shows cursor", func(t *testing.T) {
 		m := initialModel(metadata{}, []string{"Test line"})
 		m.state = stateTyping
@@ -789,75 +802,6 @@ func TestQuitCommands(t *testing.T) {
 		m := initialModel(metadata{}, []string{"Test"})
 		m.state = stateResult
 		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEsc})
-
-		if cmd == nil {
-			t.Error("expected quit command")
-		}
-	})
-}
-
-func TestIntroScreen(t *testing.T) {
-	t.Run("shows intro state when metadata is set", func(t *testing.T) {
-		meta := metadata{Title: "Test Song", Artist: "Test Artist"}
-		m := initialModel(meta, []string{"Line one"})
-
-		if m.state != stateIntro {
-			t.Errorf("state = %v, want stateIntro", m.state)
-		}
-	})
-
-	t.Run("skips intro state when no metadata", func(t *testing.T) {
-		m := initialModel(metadata{}, []string{"Line one"})
-
-		if m.state != stateSectionSelect {
-			t.Errorf("state = %v, want stateSectionSelect (should skip intro)", m.state)
-		}
-	})
-
-	t.Run("intro view shows title and artist", func(t *testing.T) {
-		meta := metadata{Title: "Amazing Grace", Artist: "John Newton"}
-		m := initialModel(meta, []string{"Line one"})
-		view := m.View()
-
-		if !strings.Contains(view, "Amazing Grace") {
-			t.Error("intro should show title")
-		}
-		if !strings.Contains(view, "John Newton") {
-			t.Error("intro should show artist")
-		}
-		if !strings.Contains(view, "Press Enter") {
-			t.Error("intro should show continue prompt")
-		}
-	})
-
-	t.Run("enter advances from intro to section select", func(t *testing.T) {
-		meta := metadata{Title: "Test", Artist: "Artist"}
-		m := initialModel(meta, []string{"Line one"})
-
-		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-		m = newModel.(model)
-
-		if m.state != stateSectionSelect {
-			t.Errorf("state = %v, want stateSectionSelect", m.state)
-		}
-	})
-
-	t.Run("space advances from intro to section select", func(t *testing.T) {
-		meta := metadata{Title: "Test", Artist: "Artist"}
-		m := initialModel(meta, []string{"Line one"})
-
-		newModel, _ := m.Update(tea.KeyMsg{Type: tea.KeySpace})
-		m = newModel.(model)
-
-		if m.state != stateSectionSelect {
-			t.Errorf("state = %v, want stateSectionSelect", m.state)
-		}
-	})
-
-	t.Run("ctrl+c quits from intro", func(t *testing.T) {
-		meta := metadata{Title: "Test", Artist: "Artist"}
-		m := initialModel(meta, []string{"Line one"})
-		_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
 
 		if cmd == nil {
 			t.Error("expected quit command")

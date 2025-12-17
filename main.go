@@ -23,8 +23,7 @@ var (
 type state int
 
 const (
-	stateIntro state = iota
-	stateSectionSelect
+	stateSectionSelect state = iota
 	stateTyping
 	stateResult
 )
@@ -141,12 +140,6 @@ func parseSections(lines []string) []section {
 func initialModel(meta metadata, lines []string) model {
 	sections := parseSections(lines)
 
-	// Skip intro screen if no metadata is set
-	initialState := stateIntro
-	if meta.Title == "" && meta.Artist == "" {
-		initialState = stateSectionSelect
-	}
-
 	return model{
 		meta:            meta,
 		allLines:        lines,
@@ -154,7 +147,7 @@ func initialModel(meta metadata, lines []string) model {
 		sections:        sections,
 		selectedSection: -1, // -1 means all sections
 		results:         make([]bool, len(lines)),
-		state:           initialState,
+		state:           stateSectionSelect,
 	}
 }
 
@@ -177,8 +170,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch m.state {
-		case stateIntro:
-			return m.handleIntroInput(msg)
 		case stateSectionSelect:
 			return m.handleSectionSelectInput(msg)
 		case stateTyping:
@@ -186,17 +177,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case stateResult:
 			return m.handleResultInput(msg)
 		}
-	}
-	return m, nil
-}
-
-func (m model) handleIntroInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.KeyCtrlC, tea.KeyEsc:
-		return m, tea.Quit
-	case tea.KeyEnter, tea.KeySpace:
-		m.state = stateSectionSelect
-		return m, nil
 	}
 	return m, nil
 }
@@ -335,7 +315,7 @@ func (m model) View() string {
 	var b strings.Builder
 
 	switch m.state {
-	case stateIntro:
+	case stateSectionSelect:
 		b.WriteString("\n")
 		if m.meta.Title != "" {
 			b.WriteString(boldStyle.Render(m.meta.Title))
@@ -345,12 +325,9 @@ func (m model) View() string {
 			b.WriteString(dimStyle.Render("by " + m.meta.Artist))
 			b.WriteString("\n")
 		}
-		b.WriteString("\n")
-		b.WriteString(dimStyle.Render("Press Enter to continue..."))
-		b.WriteString("\n")
-
-	case stateSectionSelect:
-		b.WriteString("\n")
+		if m.meta.Title != "" || m.meta.Artist != "" {
+			b.WriteString("\n")
+		}
 		b.WriteString(boldStyle.Render("Select Section:"))
 		b.WriteString("\n\n")
 		b.WriteString("  a. All sections\n")
