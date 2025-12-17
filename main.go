@@ -50,6 +50,7 @@ type model struct {
 	currentLine     int
 	input           string
 	results         []bool
+	userInputs      []string // stores user's input for each line (for diff display)
 	state           state
 	hint            string // current hint to display (next word or full line)
 	hintLevel       int    // 0 = no hint, 1 = word hint, 2 = full line hint
@@ -131,6 +132,50 @@ func linesMatch(input, expected string) bool {
 	return true
 }
 
+// formatDiff returns a word-by-word diff between user input and expected line.
+// Green words match, red words differ, with expected shown in parentheses.
+func formatDiff(input, expected string) string {
+	inputWords := strings.Fields(input)
+	expectedWords := strings.Fields(expected)
+
+	var b strings.Builder
+	maxLen := len(inputWords)
+	if len(expectedWords) > maxLen {
+		maxLen = len(expectedWords)
+	}
+
+	for i := 0; i < maxLen; i++ {
+		if i > 0 {
+			b.WriteString(" ")
+		}
+
+		var inputWord, expectedWord string
+		if i < len(inputWords) {
+			inputWord = inputWords[i]
+		}
+		if i < len(expectedWords) {
+			expectedWord = expectedWords[i]
+		}
+
+		if inputWord == "" {
+			// Missing word - show expected in red
+			b.WriteString(redStyle.Render("[" + expectedWord + "]"))
+		} else if expectedWord == "" {
+			// Extra word - show in red with strikethrough
+			b.WriteString(redStyle.Render(inputWord))
+		} else if wordsMatch(inputWord, expectedWord) {
+			// Correct word - show in green
+			b.WriteString(greenStyle.Render(inputWord))
+		} else {
+			// Wrong word - show user input in red, expected in parentheses
+			b.WriteString(redStyle.Render(inputWord))
+			b.WriteString(dimStyle.Render("(" + expectedWord + ")"))
+		}
+	}
+
+	return b.String()
+}
+
 // getNextWordHint returns a hint for the next word the user should type.
 // It looks at what the user has typed so far and returns the next word from the expected line.
 func getNextWordHint(input, expected string) string {
@@ -200,6 +245,7 @@ func initialModel(meta metadata, lines []string) model {
 		sections:        sections,
 		selectedSection: -1, // -1 means all sections
 		results:         make([]bool, len(lines)),
+		userInputs:      make([]string, len(lines)),
 		state:           stateSectionSelect,
 	}
 }
@@ -244,6 +290,7 @@ func (m *model) selectSection(sectionIdx int) {
 		m.lines = m.allLines
 		m.lineIndices = nil
 		m.results = make([]bool, len(m.lines))
+		m.userInputs = make([]string, len(m.lines))
 	} else {
 		// Specific section
 		sec := m.sections[sectionIdx]
@@ -253,6 +300,7 @@ func (m *model) selectSection(sectionIdx int) {
 			m.lineIndices[i] = sec.startIdx + i
 		}
 		m.results = make([]bool, len(m.lines))
+		m.userInputs = make([]string, len(m.lines))
 	}
 
 	m.currentLine = 0
@@ -297,6 +345,7 @@ func (m model) handleTypingInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyEnter:
 		// Check if input matches current line (ignoring punctuation, spaces, case, and g-dropping)
 		m.results[m.currentLine] = linesMatch(m.input, m.lines[m.currentLine])
+		m.userInputs[m.currentLine] = m.input
 		m.currentLine++
 		m.input = ""
 		m.hint = ""
@@ -353,6 +402,7 @@ func (m model) handleResultInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.currentLine = 0
 			m.input = ""
 			m.results = make([]bool, len(m.lines))
+			m.userInputs = make([]string, len(m.lines))
 			m.state = stateTyping
 			m.skipComments()
 			return m, nil
@@ -401,7 +451,7 @@ func (m model) View() string {
 				b.WriteString(dimStyle.Render(m.lines[i]))
 			} else {
 				b.WriteString(redStyle.Render("✗ "))
-				b.WriteString(dimStyle.Render(m.lines[i]))
+				b.WriteString(formatDiff(m.userInputs[i], m.lines[i]))
 			}
 			b.WriteString("\n")
 		}
@@ -430,7 +480,7 @@ func (m model) View() string {
 				b.WriteString(line)
 			} else {
 				b.WriteString(redStyle.Render("✗ "))
-				b.WriteString(line)
+				b.WriteString(formatDiff(m.userInputs[i], m.lines[i]))
 			}
 			b.WriteString("\n")
 		}
