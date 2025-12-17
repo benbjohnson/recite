@@ -36,3 +36,7 @@ Single-file Bubble Tea application with a state machine:
 - `stateResult`: Shows final score, y/n to restart or quit
 
 The model tracks current line index, user input, and per-line results (correct/incorrect).
+
+## Version control
+
+When creating a new feature, create a feature branch in git.
