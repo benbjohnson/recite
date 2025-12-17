@@ -24,6 +24,7 @@ type state int
 
 const (
 	stateIntro state = iota
+	stateModeSelect
 	stateSectionSelect
 	stateTyping
 	stateResult
@@ -41,6 +42,13 @@ type section struct {
 	endIdx   int // exclusive
 }
 
+type mode int
+
+const (
+	modePractice mode = iota
+	modeMemory
+)
+
 type model struct {
 	meta            metadata  // song metadata from front matter
 	allLines        []string  // all lines from the file
@@ -52,6 +60,7 @@ type model struct {
 	input           string
 	results         []bool
 	state           state
+	mode            mode
 	hint            string // current hint to display (next word or full line)
 	hintLevel       int    // 0 = no hint, 1 = word hint, 2 = full line hint
 }
@@ -144,7 +153,7 @@ func initialModel(meta metadata, lines []string) model {
 	// Skip intro screen if no metadata is set
 	initialState := stateIntro
 	if meta.Title == "" && meta.Artist == "" {
-		initialState = stateSectionSelect
+		initialState = stateModeSelect
 	}
 
 	return model{
@@ -179,6 +188,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch m.state {
 		case stateIntro:
 			return m.handleIntroInput(msg)
+		case stateModeSelect:
+			return m.handleModeSelectInput(msg)
 		case stateSectionSelect:
 			return m.handleSectionSelectInput(msg)
 		case stateTyping:
@@ -195,9 +206,30 @@ func (m model) handleIntroInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyCtrlC, tea.KeyEsc:
 		return m, tea.Quit
 	case tea.KeyEnter, tea.KeySpace:
-		m.state = stateSectionSelect
+		m.state = stateModeSelect
 		return m, nil
 	}
+	return m, nil
+}
+
+func (m model) handleModeSelectInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.KeyCtrlC, tea.KeyEsc:
+		return m, tea.Quit
+
+	case tea.KeyRunes:
+		key := string(msg.Runes)
+		if key == "1" {
+			m.mode = modePractice
+			m.state = stateSectionSelect
+			return m, nil
+		} else if key == "2" {
+			m.mode = modeMemory
+			m.state = stateSectionSelect
+			return m, nil
+		}
+	}
+
 	return m, nil
 }
 
@@ -349,6 +381,15 @@ func (m model) View() string {
 		b.WriteString(dimStyle.Render("Press Enter to continue..."))
 		b.WriteString("\n")
 
+	case stateModeSelect:
+		b.WriteString("\n")
+		b.WriteString(boldStyle.Render("Select Mode:"))
+		b.WriteString("\n\n")
+		b.WriteString("  1. Practice - see the line, then type it\n")
+		b.WriteString("  2. Memory - type from memory\n")
+		b.WriteString("\n")
+		b.WriteString("Press 1 or 2 to select: ")
+
 	case stateSectionSelect:
 		b.WriteString("\n")
 		b.WriteString(boldStyle.Render("Select Section:"))
@@ -376,6 +417,13 @@ func (m model) View() string {
 			b.WriteString("\n")
 		}
 
+		// Show current line to type (bold) - only in practice mode
+		b.WriteString("\n")
+		if m.mode == modePractice {
+			b.WriteString(boldStyle.Render(m.lines[m.currentLine]))
+		} else {
+			b.WriteString(dimStyle.Render("(type from memory)"))
+		}
 		b.WriteString("\n")
 
 		// Show user input
